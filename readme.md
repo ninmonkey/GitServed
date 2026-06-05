@@ -1,18 +1,20 @@
 # Git Served
 
-name `GetServed`, `GitServed` ?
-
 This does two things:
 
 - Query and search git repos from a pwsh TUI
 - Or query from any language from a local rest API
 
+## Naming? `GetServed` vs `GitServed` ?
+
+- `GitServed` - is **this module** that serves git repos over REST and TUI
+- `GetServed` - the re-usable module pattern that was used to create this module
 
 ## How to Run
 
 Build, Run example
 
-## Future Plansf
+## Future Plans
 
 ### Server: Rebuild changes and Run
 
