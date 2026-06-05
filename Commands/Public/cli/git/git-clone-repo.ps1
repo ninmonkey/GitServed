@@ -19,7 +19,7 @@ function Invoke-GitClone {
     end {
         "enter => '$( $MyInvocation.MyCommand.Name )'" | Write-Debug
         throw "NYI"
-        _InvokeCli.Git.CloneRepo -CloneUrl $CloneUrl
+        _InvokeCli.Git.CloneRepo -CloneUrl $CloneUrl -FromPath '.'
     }
     # [pscustomobject]@{
     #     PSTypeName = 'GitServed.Git.Clone'
