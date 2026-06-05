@@ -1,7 +1,7 @@
 ﻿#requires -Module EZOut
 #  Install-Module EZOut or https://github.com/StartAutomating/EZOut
 $myFile       = $MyInvocation.MyCommand.ScriptBlock.File
-$myModuleName = 'GitServed'
+$myModuleName = 'GitServe'
 $myRoot       = $myFile | Split-Path | Split-Path
 $cdStackName = "${myModuleName}.build"
 Push-Location -StackName $cdStackName $myRoot

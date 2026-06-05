@@ -5,7 +5,7 @@
 @{
 
     # Script module or binary module file associated with this manifest.
-    RootModule        = 'GitServed.psm1'
+    RootModule        = 'GitServe.psm1'
 
     # Version number of this module.
     ModuleVersion     = '0.0.1'

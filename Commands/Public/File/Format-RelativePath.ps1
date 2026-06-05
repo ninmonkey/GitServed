@@ -40,7 +40,7 @@
                 continue
             } else {
                 [pscustomobject]@{
-                    PSTypeName = 'GitServed.RelativePath'
+                    PSTypeName = 'GitServe.RelativePath'
                     Path       = $relPath
                     Original   = $Item
                     RelativeTo = $RelativeTo

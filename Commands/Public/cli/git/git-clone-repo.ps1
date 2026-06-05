@@ -26,7 +26,7 @@ function Invoke-GitServeClone {
         _InvokeCli.Git.CloneRepo -CloneUrl $CloneUrl -FromPath $FromPath -PSHost:$True
     }
     # [pscustomobject]@{
-    #     PSTypeName = 'GitServed.Git.Clone'
+    #     PSTypeName = 'GitServe.Git.Clone'
     #     CloneUrl = $CloneUrl
     #     Result = '<NYI>'
     # }

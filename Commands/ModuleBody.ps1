@@ -1,17 +1,17 @@
-﻿"enter => '$( $MyInvocation.MyCommand.Name )'" | Write-Host
+﻿# "enter => '$( $MyInvocation.MyCommand.Name )'" | Write-Host
 
-# log env vars and configuration
-Get-ChildItem env:\
-    | ? Name -in 'PWSH_PORT', 'PWSH_HOST'
-    | Join-String { "$( $_.Key ) = $( $_.Value )" } -op 'Env Vars: ' -sep ', '
-    | write-host
+# # log env vars and configuration
+# Get-ChildItem env:\
+#     | ? Name -in 'PWSH_PORT', 'PWSH_HOST'
+#     | Join-String { "$( $_.Key ) = $( $_.Value )" } -op 'Env Vars: ' -sep ', '
+#     | write-host
 
 
-"server-routing.ps1 => Host: ${HostName}, Port: ${PortNumber}, Start: $( Get-Date )" | Write-Host
+# "server-routing.ps1 => Host: ${HostName}, Port: ${PortNumber}, Start: $( Get-Date )" | Write-Host
 
 
 # if( $Listener.isListening -or $null -ne $Listener -or $null -ne $JobName ) {
-#     # cleanup if previous invocation is still bound
+#     # cleanup if previous invocation is still
 #     $toDot = Get-Item -ea stop ( Join-Path $PSScriptRoot 'server-stop.ps1' )
 #     . $toDot
 # }

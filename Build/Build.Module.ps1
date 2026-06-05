@@ -20,7 +20,7 @@ Uses standard names across repos:
     $commands_summary | ft
 #>
 $myFile       = $MyInvocation.MyCommand.ScriptBlock.File
-$myModuleName = 'GitServed'
+$myModuleName = 'GitServe'
 $myRoot       = $myFile | Split-Path | Split-Path
 $BuildConfig = @{
     LineEnding = "`r`n"
