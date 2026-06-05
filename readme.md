@@ -12,7 +12,7 @@ This does two things:
 
 Build, Run example
 
-## Future Plans
+## Future Plansf
 
 ### Server: Rebuild changes and Run
 
@@ -21,6 +21,7 @@ ServeIt stop
 build-module.ps1 # build module changes 
 ServeIt start 3001
 ```
+
 
 ### User Commands
 ```ps1
@@ -39,6 +40,4 @@ Responded to http://127.0.0.1:3001/repo/clone?url=https://github.com/BurntSushi/
 
 ## App Layout
 
-- `/Commands` - Powershell module commands
-- `/Server` - HttpServer Routes
-- `/Static` - Static Resources
+See: [readme.ProjectLayout.md](readme.ProjectLayout.md)
