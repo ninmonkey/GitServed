@@ -1,0 +1,9 @@
+GitServed.code-workspace
+*.zip
+*.dll
+*.exe
+/Scratch/
+# node_modules
+# /dist
+# /out
+# /Release
