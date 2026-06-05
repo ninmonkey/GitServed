@@ -24,7 +24,6 @@ build-module.ps1 # build module changes
 ServeIt start 3001
 ```
 
-
 ### User Commands
 ```ps1
 # Get request to current session
@@ -43,3 +42,11 @@ Responded to http://127.0.0.1:3001/repo/clone?url=https://github.com/BurntSushi/
 ## App Layout
 
 See: [readme.ProjectLayout.md](readme.ProjectLayout.md)
+
+
+## Debugging the module
+
+An example that stops, rebuilds, and reloads module changes
+```ps1
+. ./Scratch/debug_harness.ps1
+```
