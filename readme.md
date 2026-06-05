@@ -36,3 +36,9 @@ Responded to http://127.0.0.1:3001/repo/clone?url=https://github.com/BurntSushi/
 ## TUI - Autocompletes query routes
 
 - fzf and completions but TUI
+
+## App Layout
+
+- `/Commands` - Powershell module commands
+- `/Server` - HttpServer Routes
+- `/Static` - Static Resources
