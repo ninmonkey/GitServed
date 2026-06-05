@@ -1,25 +1,29 @@
-function Invoke-GitClone {
+# function Invoke-GitClone {
+function Invoke-GitServeClone {
     <#
     .synopsis
         Clone a public git repo using the 'git' cli ( without using 'gh' )
     .example
         > GitServe.Git.Clone 'https://github.com/BurntSushi/ripgrep.git'
     #>
-    # [Alias('GitServe.Cli.Git.Clone')]
+    [Alias(
+        'GitServe.Git.Clone'
+    )]
     [CmdletBinding( DefaultParameterSetName = 'CloneFromRawUrl' )]
     param(
         # Git url to clone
         [Parameter( ParameterSetName = 'CloneFromRawUrl', Position = 0, Mandatory )]
-        [Alias('Clone', 'Url', 'GitUrl')]
+        [Alias( 'Repo', 'Clone', 'Url', 'GitUrl')]
         [ArgumentCompletions(
             'https://github.com/BurntSushi/ripgrep.git'
         )]
-        [string] $CloneUrl # ( string because not all valid git clone urls are valid
+        [string] $CloneUrl, # ( string because not all valid git clone urls are valid,
+
+        [string] $FromPath = '.'
     )
     end {
         "enter => '$( $MyInvocation.MyCommand.Name )'" | Write-Debug
-        throw "NYI"
-        _InvokeCli.Git.CloneRepo -CloneUrl $CloneUrl -FromPath '.'
+        _InvokeCli.Git.CloneRepo -CloneUrl $CloneUrl -FromPath $FromPath -PSHost:$True
     }
     # [pscustomobject]@{
     #     PSTypeName = 'GitServed.Git.Clone'

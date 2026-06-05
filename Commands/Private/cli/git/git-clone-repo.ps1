@@ -33,6 +33,7 @@
         https://github.com, BurntSushi, ripgrep.git
     #>
 
+
     [ordered]@{ OwnerName = $OwnerName; RepoName = $RepoName; UriPrefix = $UriPrefix ; CloneUrl = $CloneUrl }
         | ConvertTo-Json -Compress -depth 2
         | Write-Verbose
@@ -40,6 +41,8 @@
     if( [String]::IsNullOrWhiteSpace( $OwnerName ) ) {
         throw "OwnerName from the CloneUrl is blank!"
     }
+
+    Push-Location -Stack $CdStackName $FromPath
 
     # Run real git with args:
     #region Invoke Real Git Args
@@ -63,5 +66,8 @@
         "Directory '${ownerName}' already exists. Skipping clone."
             | Write-Host -fg 'Green'
     }
+
+    Pop-Location -Stack $cdStackName # -ea Ignore
+
     #endregion Invoke Real Git Args
 }
