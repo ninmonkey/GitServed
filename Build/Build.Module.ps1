@@ -10,9 +10,17 @@ Uses standard names across repos:
 .EXAMPLE
     # If you want to inspect the summary, dot source it
     . .\Build\Build.Module.ps1; $commands_summary ;
+
+.Example
+    # Show summaries of functions assembled:
+
+    . .\Build\Build.Module.ps1; $commands_summary ;
+    $commands_private | ft
+    $commands_public  | ft
+    $commands_summary | ft
 #>
 $myFile       = $MyInvocation.MyCommand.ScriptBlock.File
-$myModuleName = 'gitserved'
+$myModuleName = 'GitServed'
 $myRoot       = $myFile | Split-Path | Split-Path
 $BuildConfig = @{
     LineEnding = "`r`n"

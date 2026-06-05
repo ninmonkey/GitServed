@@ -2,8 +2,23 @@ GitServed.code-workspace
 *.zip
 *.dll
 *.exe
+PSScriptAnalyzerSettings.psd1
+
+# Ignore test files
 /Scratch/
-# node_modules
+
+# ignore common binaries andartifact paths
 # /dist
 # /out
 # /Release
+node_modules
+
+# common "binaries" or non-code artifacts
+*.{exe,dll,zip}
+*.{docx,xlsx,pbix,pbip}
+
+# Images
+*.{png,gif}
+
+# other unwanted text files
+*.{log,csv,json,tmp,txt}
