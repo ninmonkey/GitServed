@@ -35,6 +35,7 @@ $commands_public   = @(
         Get-ChildItem -Recurse -ea ignore -Path ( Join-Path $myRoot $potentialDirectory )
     })
     | Where-Object name -NotMatch '^Scrap'
+    | Where-Object name -NotMatch '^ModuleBody\.ps1'
     | ? Extension -in '.ps1' #, '.psm1', '.psd1'
 )
 $commands_private   = @(
@@ -43,8 +44,11 @@ $commands_private   = @(
         Get-ChildItem -Recurse -ea ignore -Path ( Join-Path $myRoot $potentialDirectory )
     })
     | Where-Object name -NotMatch '^Scrap'
+    | Where-Object name -NotMatch '^ModuleBody\.ps1'
     | ? Extension -in '.ps1' #, '.psm1', '.psd1'
 )
+
+$moduleBody = Join-Path 'Commands' 'ModuleBody.ps1' | Get-Item -ea ignore
 
 [Collections.Generic.List[object]] $commands_summary = @()
 $commands_summary.AddRange(
@@ -110,6 +114,10 @@ if( $commands_summary.count -gt 0 ) {
         }
         # todo: optimize IO. And minimize any extra memory allocations for strings
         foreach ( $item in ( $commands_summary | ? Public ) )  {
+            ( Get-Content -raw (Get-Item $item.FullName ) ) -replace '\r?\n', $BuildConfig.LineEnding
+        }
+
+        foreach( $item in $moduleBody ) {
             ( Get-Content -raw (Get-Item $item.FullName ) ) -replace '\r?\n', $BuildConfig.LineEnding
         }
     )
