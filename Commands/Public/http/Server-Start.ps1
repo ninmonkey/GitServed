@@ -36,23 +36,26 @@
         [Parameter()]
         [int] $Port
     )
-
-    if( -not $Port ) {
-        $Port = Get-Random -Minimum 3000 -Maximum 4000
-    }
-
     if( $Script:Listener -and $Script:Listener.IsListening ) {
         Stop-GitServe
     }
+    $state = $Script:ModuleState
 
-    $script:ModuleState.HostName = $Host
-    $script:ModuleState.Port = $Port
+    if( -not $Port ) { $Port = Get-Random -Minimum 3000 -Maximum 4000 }
+    $state.HostName = $Host
+    $state.Port = $Port
+
     "$( (Get-Date).ToString('u')) GitServe: started listening on: http://${Host}:${Port}"
         | Write-Host
 
-    $script:ModuleState.JobName = "http://${HostName}:${PortNumber}/"
+    [string[]] $prefix = 'http://{0}:{1}/' -f @(
+        $state.HostName
+        $state.Port
+    )
 
     $script:Listener = [Net.HttpListener]::new()
-    $Listener.Prefixes.Add( $ModuleState.JobName )
+    foreach( $curPrefix in $prefix ) {
+        $Listener.Prefixes.Add( $curPrefix )
+    }
     $Listener.Start()
 }

@@ -1,7 +1,7 @@
 ﻿function Stop-GitServe {  # 'Stop-GitServeServer' sounded bad
     <#
     .synopsis
-        Stop listen server
+        Stop listen server. Dispose of HttpListener and ThreadJobs
     .notes
         aliased as Stop-GitServe, GitServe.Stop
     .example
@@ -19,36 +19,32 @@
         Stop-GitServe
     .LINK
         GitServe
+    .LINK
+        https://learn.microsoft.com/en-us/dotnet/api/system.net.httplistener?view=net-10.0
     #>
     [Alias('GitServe.Stop')]
     [CmdletBinding()]
     param( )
 
     [Net.HttpListener] $list = $Script:Listener
+    # 1] Stop ThreadJobs
+    # 2] Stop, Close, and null HttpListener
 
-    if( $script:nin_dbg ) {
-        wait-debugger
+    $threadJobs = Get-Job | ? Name -Match 'GitServe.*'
+    if( $threadJobs.Count -gt 0 ) {
+        $threadJobs.Name
+            | Join-String -sep ', ' -SingleQuote -op 'GitServe Jobs already running: ' -os '. Stopping...'
+            | Write-Warning
     }
-    if( $list.IsListening -or $null -ne $ModuleState.JobName ) {
+    $threadJobs | Stop-Job -PassThru | Receive-Job -AutoRemoveJob -Wait
+
+    if( $list.IsListening -or $null -ne $list ) {
+        ( $list )?.Stop()
         ( $list )?.Close()
-        ( $list )?.Dispose()
         $list = $null
-
-        Write-Warning "Job '${JobName}' was already running, stopping jobs..."
-        Get-Job $ModuleState.JobName | Stop-Job -PassThru | Receive-Job -AutoRemoveJob -Wait
-
-        if( -not ( Get-Job $ModuleState.JobName -ea ignore ) ) {
-            $JobName = $Null
-        }
-        # $JobName = $Null
-        'Total Remaining Jobs: {0}' -f (Get-Job).count | Write-Host
     }
-
     $msg = 'http://{0}:{1}' -f ( $script:ModuleState.HostName, $script:ModuleState.Port )
     "$( (Get-Date).ToString('u')) GitServe: Stopped listening on: ${msg}"
         | Write-Host
 
-    if( $script:nin_dbg ) {
-        wait-debugger
-    }
 }
