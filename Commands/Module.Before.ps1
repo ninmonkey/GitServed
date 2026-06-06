@@ -9,6 +9,7 @@ $script:ModuleState = [hashtable]::Synchronized(@{
     HostName = $null
     Port = $null
     JobName = $null
+    Using_CleanupOnRemoveEvent = $true
 })
 
 [Net.HttpListener] $script:Listener = [Net.HttpListener]::new()
