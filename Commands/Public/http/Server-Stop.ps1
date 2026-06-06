@@ -27,7 +27,7 @@
     if( -not $Port ) {
         $Port = Get-Random -Minimum 3000 -Maximum 4000
     }
-    $msg = '{0}:{1}' -f ( $script:ModuleState.HostName, $script:ModuleState.Port )
-    "GitServe: Stopped listening on: ${msg} at $( (Get-Date).ToString('u'))"
+    $msg = 'http://{0}:{1}' -f ( $script:ModuleState.HostName, $script:ModuleState.Port )
+    "$( (Get-Date).ToString('u')) GitServe: Stopped listening on: ${msg}"
         | Write-Host
 }

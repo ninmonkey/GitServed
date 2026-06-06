@@ -184,7 +184,7 @@ if( $commands_summary.count -gt 0 ) {
 #>
 "@
         writeRegion -RegionName 'Module.Before.ps1'
-        $ModuleBeginDefinition = Get-Item -ea 'Ignore' ( Join-Path $myRoot 'Module.Before.ps1' )
+        $ModuleBeginDefinition = Get-Item -ea 'continue' ( Join-Path $myRoot 'Commands/Module.Before.ps1' )
         if( $ModuleBeginDefinition ) {
             ( Get-Content -raw $ModuleBeginDefinition ) -replace '\r?\n', $BuildConfig.LineEnding
         }
@@ -202,12 +202,12 @@ if( $commands_summary.count -gt 0 ) {
         }
         writeRegion -RegionName 'Public Functions' -EndRegion
 
-        writeRegion -RegionName 'Module.End.ps1'
-        $ModuleEndDefinition = Get-Item -ea 'Ignore' ( Join-Path $myRoot 'Module.End.ps1' )
+        writeRegion -RegionName 'Module.After.ps1'
+        $ModuleEndDefinition = Get-Item -ea 'continue' ( Join-Path $myRoot 'Commands/Module.After.ps1' )
         if( $ModuleEndDefinition ) {
             ( Get-Content -raw $ModuleEndDefinition ) -replace '\r?\n', $BuildConfig.LineEnding
         }
-        writeRegion -RegionName 'Module.End.ps1' -EndRegion
+        writeRegion -RegionName 'Module.After.ps1' -EndRegion
     )
     | Join-String -sep $BuildConfig.LineEnding
     | Set-Content -Path $MyModuleFile -encoding UTF8 -ProgressAction Continue # -Confirm

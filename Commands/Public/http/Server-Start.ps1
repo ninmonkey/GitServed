@@ -29,7 +29,7 @@
         )]
         [Alias('Ip')]
         [Parameter(Position = 0)]
-        [String] $Host,
+        [String] $Host = '127.0.0.1',
 
         [Parameter()]
         [int] $Port
@@ -41,6 +41,6 @@
 
     $script:ModuleState.HostName = $Host
     $script:ModuleState.Port = $Port
-    "GitServe: started listening on: ${Host}:${Port} at $( (Get-Date).ToString('u'))"
+    "$( (Get-Date).ToString('u')) GitServe: started listening on: http://${Host}:${Port}"
         | Write-Host
 }
