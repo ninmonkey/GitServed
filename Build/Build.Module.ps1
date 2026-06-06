@@ -14,7 +14,7 @@
 
 ## Module.psm1's contents are generated in this order:
 
-    Module.Begin.ps1
+    Module.Before.ps1
 
     All /Private/* functions
     All /Public/* functions
@@ -166,11 +166,11 @@ if( $commands_summary.count -gt 0 ) {
     <#
         Write module source code:
             special files:
-                Module.Begin.ps1, Module.End.ps1
+                Module.Before.ps1, Module.End.ps1
 
     The output Module.psm1's contents are generated in this order:
 
-        1] Module.Begin.ps1
+        1] Module.Before.ps1
         2] All /Private/* functions
         3] All /Public/* functions
         4] Module.After.ps1
@@ -183,12 +183,12 @@ if( $commands_summary.count -gt 0 ) {
     Module built on: $( ( get-date ).tostring('u') )
 #>
 "@
-        writeRegion -RegionName 'Module.Begin.ps1'
-        $ModuleBeginDefinition = Get-Item -ea 'Ignore' ( Join-Path $myRoot 'Module.Begin.ps1' )
+        writeRegion -RegionName 'Module.Before.ps1'
+        $ModuleBeginDefinition = Get-Item -ea 'Ignore' ( Join-Path $myRoot 'Module.Before.ps1' )
         if( $ModuleBeginDefinition ) {
             ( Get-Content -raw $ModuleBeginDefinition ) -replace '\r?\n', $BuildConfig.LineEnding
         }
-        writeRegion -RegionName 'Module.Begin.ps1' -EndRegion
+        writeRegion -RegionName 'Module.Before.ps1' -EndRegion
 
         writeRegion -RegionName 'Private Module Functions'
         foreach ( $item in ( $commands_summary | ? -Not Public ) )  {
