@@ -26,9 +26,8 @@ $BuildConfig = @{
     LineEnding = "`r`n"
 }
 $cdStackName = "${myModuleName}.build"
-Import-Module Pansies
-
 Push-Location -Stack $cdStackName $myRoot
+
 $commands_public   = @(
     # to recurse or not ?
     @( foreach ( $potentialDirectory in 'Commands/Public' ) {
@@ -50,6 +49,7 @@ $commands_private   = @(
 
 $moduleBody = Join-Path 'Commands' 'ModuleBody.ps1' | Get-Item -ea ignore
 
+#region Collect Functions
 [Collections.Generic.List[object]] $commands_summary = @()
 $commands_summary.AddRange(
     @(
@@ -105,6 +105,11 @@ $commands_summary
     | Write-Host -fg 'magenta'
 Pop-Location -Stack $cdStackName
 
+#endregion Collect Functions
+
+#region Write Source to Files
+
+
 if( $commands_summary.count -gt 0 ) {
     $myModuleFile = Join-Path $DestinationRoot "${myModuleName}.psm1"
 
@@ -124,7 +129,14 @@ if( $commands_summary.count -gt 0 ) {
     | Join-String -sep $BuildConfig.LineEnding
     | Set-Content -Path $MyModuleFile -encoding UTF8 -ProgressAction Continue # -Confirm
 }
-return
+
+#endregion Write Source to Files
+if( $true )  {
+    Write-Verbose 'Building FormatData: Skipped...'
+    return
+}
+
+#region Write Format Files
 if ($commands_public) {
     $myFormatFile = Join-Path $destinationRoot "$myModuleName.format.ps1xml"
     $commands_public
@@ -150,4 +162,5 @@ if ($types) {
 
     Get-Item $myTypesFile
 }
-Pop-Location
+#endregion Write Format Files
+Pop-Location -Stack $cdStackName -ea ignore
