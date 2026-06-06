@@ -2,19 +2,10 @@
     <#
     .synopsis
         Stop listen server. Dispose of HttpListener and ThreadJobs
-    .notes
-        aliased as Stop-GitServe, GitServe.Stop
     .example
-        # random ports
         > GitServe Stop
-
-    .example
-        > GitServe Stop -Host ip -Port port
-    Maybe allow:
-        > GitServe Stop ip:port
-        > GitServe Stop port
     .LINK
-        Stop-GitServe
+        Start-GitServe
     .LINK
         Stop-GitServe
     .LINK
@@ -38,13 +29,14 @@
     }
     $threadJobs | Stop-Job -PassThru | Receive-Job -AutoRemoveJob -Wait
 
-    if( $list.IsListening -or $null -ne $list ) {
+    # or if( $list.IsListening -or $null -ne $list ) {
+    if( $null -ne $list ) {
         ( $list )?.Stop()
         ( $list )?.Close()
         $list = $null
+        $script:Listener = $null
     }
-    $msg = 'http://{0}:{1}' -f ( $script:ModuleState.HostName, $script:ModuleState.Port )
-    "$( (Get-Date).ToString('u')) GitServe: Stopped listening on: ${msg}"
+    "$( (Get-Date).ToString('u')) GitServe: Stopped listening"
         | Write-Host
 
 }
