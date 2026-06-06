@@ -38,6 +38,8 @@
 .LINK
     Module.OnExit.ps1
 #>
+
+#region Init
 $myFile       = $MyInvocation.MyCommand.ScriptBlock.File
 $myModuleName = 'GitServe'
 $myRoot       = $myFile | Split-Path | Split-Path
@@ -48,9 +50,42 @@ $cdStackName = "${myModuleName}.build"
 Push-Location -Stack $cdStackName $myRoot
 
 $Regex = [ordered]@{}
+# these names are excluded from any files in /Public and /Private
 $Regex.SpecialModuleIgnores = '^(Module\.Before|Module\.After|Module\.OnExit)\.ps1$'
 
-# Module\.Before\.ps1|^Module\.After\.ps1|^Module\.OnExit\.ps1'
+#endRegion Init
+
+#region Internal Function Definitions
+function writeRegion {
+    <#
+    .SYNOPSIS
+        (internal function) Writes "#region foo", "#endregion foo" blocks with whitespace padding
+    .example
+        > writeRegion 'Body'
+            '#region Body'
+
+        > writeRegion 'Body' -End
+            '#endregion Body'
+    #>
+    param(
+        [Alias('Name')][Parameter(Mandatory)]
+        [string] $RegionName,
+        [Switch] $EndRegion,
+
+        # Do not pad, exclude newlines
+        [Alias('NoWhitespace')]
+        [Switch] $Compress
+    )
+    $Pad = $Compress ? '' : "`n"
+    if( $EndRegion ) {
+        "${Pad}#endregion ${RegionName}${Pad}"
+    } else {
+        "${Pad}#region ${RegionName}${Pad}"
+    }
+}
+#endregion Internal Function Definitions
+
+#region Collect Functions
 $commands_public   = @(
     # to recurse or not ?
     @( foreach ( $potentialDirectory in 'Commands/Public' ) {
@@ -68,9 +103,6 @@ $commands_private   = @(
     | ? Extension -in '.ps1'
 )
 
-$moduleBody = Join-Path 'Commands' 'Module\.Before.ps1' | Get-Item -ea ignore
-
-#region Collect Functions
 [Collections.Generic.List[object]] $commands_summary = @()
 $commands_summary.AddRange(
     @(
@@ -151,38 +183,36 @@ if( $commands_summary.count -gt 0 ) {
     Module built on: $( ( get-date ).tostring('u') )
 #>
 "@
-        '#region {0}'    -f 'Module.Begin.ps1'
+        writeRegion -RegionName 'Module.Begin.ps1'
         $ModuleBeginDefinition = Get-Item -ea 'Ignore' ( Join-Path $myRoot 'Module.Begin.ps1' )
         if( $ModuleBeginDefinition ) {
             ( Get-Content -raw $ModuleBeginDefinition ) -replace '\r?\n', $BuildConfig.LineEnding
         }
-        '#endregion {0}' -f 'Module.Begin.ps1'
+        writeRegion -RegionName 'Module.Begin.ps1' -EndRegion
 
-        '#region {0}'    -f 'Private Module Functions'
+        writeRegion -RegionName 'Private Module Functions'
         foreach ( $item in ( $commands_summary | ? -Not Public ) )  {
             ( Get-Content -raw (Get-Item $item.FullName ) ) -replace '\r?\n', $BuildConfig.LineEnding
         }
-        '#endregion {0}' -f 'Private Module Functions'
+        writeRegion -RegionName 'Private Module Functions' -EndRegion
 
-        '#region {0}'    -f 'Public Module Functions'
+        writeRegion -RegionName 'Public Functions'
         foreach ( $item in ( $commands_summary | ? Public ) )  {
             ( Get-Content -raw (Get-Item $item.FullName ) ) -replace '\r?\n', $BuildConfig.LineEnding
         }
-        '#endregion {0}' -f 'Public Module Functions'
+        writeRegion -RegionName 'Public Functions' -EndRegion
 
-        '#region {0}'    -f 'Module.End.ps1'
+        writeRegion -RegionName 'Module.End.ps1'
         $ModuleEndDefinition = Get-Item -ea 'Ignore' ( Join-Path $myRoot 'Module.End.ps1' )
         if( $ModuleEndDefinition ) {
             ( Get-Content -raw $ModuleEndDefinition ) -replace '\r?\n', $BuildConfig.LineEnding
         }
-        '#endregion {0}' -f 'Module.End.ps1'
+        writeRegion -RegionName 'Module.End.ps1' -EndRegion
     )
     | Join-String -sep $BuildConfig.LineEnding
     | Set-Content -Path $MyModuleFile -encoding UTF8 -ProgressAction Continue # -Confirm
 }
 #endregion Write Source to Files
-
-
 
 #region Write Format Files
 if( $true )  {
