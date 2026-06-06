@@ -4,9 +4,22 @@
 .SYNOPSIS
     Builds the current repo's module including FormatData
 .Description
-Uses standard names across repos:
+
+## Uses standard names across repos:
+
     - Build.Module.ps1 - Assemble module
     - Build.ezout.ps1 - Build FormatData
+    - Module.Before.ps1 - Module content before function bodies
+    - Module.After.ps1 - Module content after the function bodies
+
+## Module.psm1's contents are generated in this order:
+
+    Module.Begin.ps1
+
+    All /Private/* functions
+    All /Public/* functions
+
+    Module.After.ps1
 .EXAMPLE
     # If you want to inspect the summary, dot source it
     . .\Build\Build.Module.ps1; $commands_summary ;
@@ -18,6 +31,12 @@ Uses standard names across repos:
     $commands_private | ft
     $commands_public  | ft
     $commands_summary | ft
+.LINK
+    Module.Before.ps1
+.LINK
+    Module.After.ps1
+.LINK
+    Module.OnExit.ps1
 #>
 $myFile       = $MyInvocation.MyCommand.ScriptBlock.File
 $myModuleName = 'GitServe'
@@ -28,26 +47,28 @@ $BuildConfig = @{
 $cdStackName = "${myModuleName}.build"
 Push-Location -Stack $cdStackName $myRoot
 
+$Regex = [ordered]@{}
+$Regex.SpecialModuleIgnores = '^(Module\.Before|Module\.After|Module\.OnExit)\.ps1$'
+
+# Module\.Before\.ps1|^Module\.After\.ps1|^Module\.OnExit\.ps1'
 $commands_public   = @(
     # to recurse or not ?
     @( foreach ( $potentialDirectory in 'Commands/Public' ) {
         Get-ChildItem -Recurse -ea ignore -Path ( Join-Path $myRoot $potentialDirectory )
     })
-    | Where-Object name -NotMatch '^Scrap'
-    | Where-Object name -NotMatch '^ModuleBody\.ps1'
-    | ? Extension -in '.ps1' #, '.psm1', '.psd1'
+    | ? Name -NotMatch $Regex.SpecialModuleIgnores
+    | ? Extension -in '.ps1'
 )
 $commands_private   = @(
     # to recurse or not ?
     @( foreach ( $potentialDirectory in 'Commands/Private') {
         Get-ChildItem -Recurse -ea ignore -Path ( Join-Path $myRoot $potentialDirectory )
     })
-    | Where-Object name -NotMatch '^Scrap'
-    | Where-Object name -NotMatch '^ModuleBody\.ps1'
-    | ? Extension -in '.ps1' #, '.psm1', '.psd1'
+    | ? Name -NotMatch $Regex.SpecialModuleIgnores
+    | ? Extension -in '.ps1'
 )
 
-$moduleBody = Join-Path 'Commands' 'ModuleBody.ps1' | Get-Item -ea ignore
+$moduleBody = Join-Path 'Commands' 'Module\.Before.ps1' | Get-Item -ea ignore
 
 #region Collect Functions
 [Collections.Generic.List[object]] $commands_summary = @()
@@ -108,35 +129,66 @@ Pop-Location -Stack $cdStackName
 #endregion Collect Functions
 
 #region Write Source to Files
-
-
 if( $commands_summary.count -gt 0 ) {
     $myModuleFile = Join-Path $DestinationRoot "${myModuleName}.psm1"
+    <#
+        Write module source code:
+            special files:
+                Module.Begin.ps1, Module.End.ps1
+
+    The output Module.psm1's contents are generated in this order:
+
+        1] Module.Begin.ps1
+        2] All /Private/* functions
+        3] All /Public/* functions
+        4] Module.After.ps1
+    #>
 
     @(
+        @"
+<#
+.Description
+    Module built on: $( ( get-date ).tostring('u') )
+#>
+"@
+        '#region {0}'    -f 'Module.Begin.ps1'
+        $ModuleBeginDefinition = Get-Item -ea 'Ignore' ( Join-Path $myRoot 'Module.Begin.ps1' )
+        if( $ModuleBeginDefinition ) {
+            ( Get-Content -raw $ModuleBeginDefinition ) -replace '\r?\n', $BuildConfig.LineEnding
+        }
+        '#endregion {0}' -f 'Module.Begin.ps1'
+
+        '#region {0}'    -f 'Private Module Functions'
         foreach ( $item in ( $commands_summary | ? -Not Public ) )  {
             ( Get-Content -raw (Get-Item $item.FullName ) ) -replace '\r?\n', $BuildConfig.LineEnding
         }
-        # todo: optimize IO. And minimize any extra memory allocations for strings
+        '#endregion {0}' -f 'Private Module Functions'
+
+        '#region {0}'    -f 'Public Module Functions'
         foreach ( $item in ( $commands_summary | ? Public ) )  {
             ( Get-Content -raw (Get-Item $item.FullName ) ) -replace '\r?\n', $BuildConfig.LineEnding
         }
+        '#endregion {0}' -f 'Public Module Functions'
 
-        foreach( $item in $moduleBody ) {
-            ( Get-Content -raw (Get-Item $item.FullName ) ) -replace '\r?\n', $BuildConfig.LineEnding
+        '#region {0}'    -f 'Module.End.ps1'
+        $ModuleEndDefinition = Get-Item -ea 'Ignore' ( Join-Path $myRoot 'Module.End.ps1' )
+        if( $ModuleEndDefinition ) {
+            ( Get-Content -raw $ModuleEndDefinition ) -replace '\r?\n', $BuildConfig.LineEnding
         }
+        '#endregion {0}' -f 'Module.End.ps1'
     )
     | Join-String -sep $BuildConfig.LineEnding
     | Set-Content -Path $MyModuleFile -encoding UTF8 -ProgressAction Continue # -Confirm
 }
-
 #endregion Write Source to Files
-if( $true )  {
-    Write-Verbose 'Building FormatData: Skipped...'
-    return
-}
+
+
 
 #region Write Format Files
+if( $true )  {
+    Write-Verbose 'Build FormatData and TypeData?: Skipped...'
+    return
+}
 if ($commands_public) {
     $myFormatFile = Join-Path $destinationRoot "$myModuleName.format.ps1xml"
     $commands_public
