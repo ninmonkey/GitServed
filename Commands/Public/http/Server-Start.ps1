@@ -2,8 +2,10 @@
     <#
     .synopsis
         Start listen server
+    .DESCRIPTION
     .notes
-        aliased as Start-GitServe, GitServe.Start
+        - calls Stop-GitServe if listener is active
+        - aliased as Start-GitServe, GitServe.Start
     .example
         # random ports
         > GitServe Start
@@ -39,8 +41,18 @@
         $Port = Get-Random -Minimum 3000 -Maximum 4000
     }
 
+    if( $Script:Listener -and $Script:Listener.IsListening ) {
+        Stop-GitServe
+    }
+
     $script:ModuleState.HostName = $Host
     $script:ModuleState.Port = $Port
     "$( (Get-Date).ToString('u')) GitServe: started listening on: http://${Host}:${Port}"
         | Write-Host
+
+    $script:ModuleState.JobName = "http://${HostName}:${PortNumber}/"
+
+    $script:Listener = [Net.HttpListener]::new()
+    $Listener.Prefixes.Add( $ModuleState.JobName )
+    $Listener.Start()
 }

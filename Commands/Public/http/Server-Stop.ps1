@@ -24,10 +24,31 @@
     [CmdletBinding()]
     param( )
 
-    if( -not $Port ) {
-        $Port = Get-Random -Minimum 3000 -Maximum 4000
+    [Net.HttpListener] $list = $Script:Listener
+
+    if( $script:nin_dbg ) {
+        wait-debugger
     }
+    if( $list.IsListening -or $null -ne $ModuleState.JobName ) {
+        ( $list )?.Close()
+        ( $list )?.Dispose()
+        $list = $null
+
+        Write-Warning "Job '${JobName}' was already running, stopping jobs..."
+        Get-Job $ModuleState.JobName | Stop-Job -PassThru | Receive-Job -AutoRemoveJob -Wait
+
+        if( -not ( Get-Job $ModuleState.JobName -ea ignore ) ) {
+            $JobName = $Null
+        }
+        # $JobName = $Null
+        'Total Remaining Jobs: {0}' -f (Get-Job).count | Write-Host
+    }
+
     $msg = 'http://{0}:{1}' -f ( $script:ModuleState.HostName, $script:ModuleState.Port )
     "$( (Get-Date).ToString('u')) GitServe: Stopped listening on: ${msg}"
         | Write-Host
+
+    if( $script:nin_dbg ) {
+        wait-debugger
+    }
 }
