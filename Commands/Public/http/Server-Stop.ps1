@@ -35,6 +35,7 @@
         ( $list )?.Close()
         $list = $null
         $script:Listener = $null
+        # $script:Listener = [Net.HttpListener]::new()
     }
     "$( (Get-Date).ToString('u')) GitServe: Stopped listening"
         | Write-Host
