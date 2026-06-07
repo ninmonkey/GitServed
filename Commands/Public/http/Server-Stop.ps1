@@ -31,10 +31,13 @@
 
     # or if( $list.IsListening -or $null -ne $list ) {
     if( $null -ne $list ) {
-        ( $list )?.Stop()
-        ( $list )?.Close()
-        $list = $null
-        $script:Listener = $null
+        try {
+            ( $list )?.Close() # note: close() throws when listener is disposed. close() is okay.
+            ( $list )?.Stop()
+        } finally {
+            $list = $null
+            $script:Listener = $null
+        }
         # $script:Listener = [Net.HttpListener]::new()
     }
     "$( (Get-Date).ToString('u')) GitServe: Stopped listening"
