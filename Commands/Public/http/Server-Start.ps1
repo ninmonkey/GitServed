@@ -60,4 +60,27 @@
 
     "$( (Get-Date).ToString('u')) GitServe: started listening on: http://$( $state.HostName ):$( $state.Port ))"
         | Write-Host
+
+    "Next: Start-RouteThread; Start-ListenLoop" | Write-Host -fg salmon
+
+    $startRouteThreadSplat = @{
+        Runspace      = [runspace]::DefaultRunspace
+        Listener      = $Listener
+        ThrottleLimit = 50
+    }
+
+    Start-RouteThread @startRouteThreadSplat
+
+    $startListenLoopSplat = @{
+        Listener = $Script:Listener
+    }
+
+    Start-ListenLoop @startListenLoopSplat
+
+    "Did it work?" | Write-Host -fg 'yellow'
+    #   [Parameter()] [Runspace] $RunSpace = ([Runspace]::DefaultRunspace), # can param binding to default cause threadsafe issues, ie: is evaluated once, or before other lifetimes?
+    #     [Net.HttpListener] $Listener = $Null,
+    #     # [hashtable] $Query = [ordered]@{}, Request.Url ParsedQuery String
+    #     # [hashtable] $JobParams = [ordered]@{},
+        # [int] $ThrottleLimit = 50
 }

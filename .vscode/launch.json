@@ -17,6 +17,18 @@
             }
         },
         {
+            "name": "Pwsh: Debug_Harness 2.ps1 ┐ [GitServed]",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${workspaceFolder}/scratch/debug_harness3.ps1",
+            "cwd": "${cwd}",
+            "presentation": {
+                "hidden": false,
+                "group": " ",
+                "order": 1
+            }
+        },
+        {
             "name": "Pwsh: Session ┐ [GitServed]",
             "type": "PowerShell",
             "request": "launch",
