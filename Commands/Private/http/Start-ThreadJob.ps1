@@ -7,7 +7,7 @@
         [Parameter()] [Runspace] $RunSpace = ([Runspace]::DefaultRunspace), # can param binding to default cause threadsafe issues, ie: is evaluated once, or before other lifetimes?
         [Net.HttpListener] $Listener = $Null,
         # [hashtable] $Query = [ordered]@{}, Request.Url ParsedQuery String
-        [hashtable] $Params = [ordered]@{},
+        # [hashtable] $JobParams = [ordered]@{},
         [int] $ThrottleLimit = 50
     )
     $state = $Script:Module
@@ -21,14 +21,17 @@
     Start-ThreadJob -ScriptBlock {
         param(
             [Runspace] $MainRunspace,
-            $Listener,
-            $Params,
+
+            [Net.HttpListener] $Listener,
+            $ThreadParams,
+
             $eventId = 'http'
         )
         while ( $Listener.IsListening ) {
             $nextRequest = $Listener.GetContextAsync()
-            while (-not ( $nextRequest.IsCompleted -or $nextRequest.IsFaulted -or $nextRequest.IsCanceled )) {
 
+            while (-not ( $nextRequest.IsCompleted -or $nextRequest.IsFaulted -or $nextRequest.IsCanceled )) {
+                # no-op?
             }
             if ($nextRequest.IsFaulted) {
                 Write-Error -Exception $nextRequest.Exception -Category ProtocolError
@@ -82,7 +85,7 @@
             #     <# waitForCompletionInCurrentThread: #> $waitForCompletionInCurrentThread)
             # #>
         }
-    } -Name $JobName -ArgumentList ( $MainRunspace, $Listener, $Params ) -ThrottleLimit $ThrottleLimit
+    } -Name $JobName -ArgumentList ( $MainRunspace, $Listener, $ThreadParams ) -ThrottleLimit $ThrottleLimit
         | Add-Member -NotePropertyMembers ([Ordered]@{HttpListener = $Listener }) -PassThru
 }
 
