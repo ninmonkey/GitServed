@@ -28,9 +28,10 @@
             $eventId = 'http'
         )
         while ( $Listener.IsListening ) {
-            $nextRequest = $Listener.GetContextAsync()
+            [Threading.Tasks.Task[System.Net.HttpListenerContext]] $nextRequest = $Listener.GetContextAsync()
 
             while (-not ( $nextRequest.IsCompleted -or $nextRequest.IsFaulted -or $nextRequest.IsCanceled )) {
+                '.' | Write-Host -bg 'salmon' -NoNewline
                 # no-op?
             }
             if ($nextRequest.IsFaulted) {
