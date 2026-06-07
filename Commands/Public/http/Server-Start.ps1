@@ -36,10 +36,12 @@
         [Parameter()]
         [int] $Port
     )
-
-    Stop-GitServe
     $state = $Script:ModuleState
-    $script:Listener = [Net.HttpListener]::new()
+    Stop-GitServe
+
+    if( $Script:Listener = $Null ) {
+        $Script:Listener = [Net.HttpListener]::new()
+    }
 
     if( -not $Port ) { $Port = Get-Random -Minimum 3000 -Maximum 4000 }
     $state.HostName = $Host
@@ -52,11 +54,18 @@
     foreach( $curPrefix in $prefix ) {
         $Listener.Prefixes.Add( $curPrefix )
     }
-
     $Listener.Prefixes
         | Join-String -f '    add prefix {0}' | Write-Host -fg 'gray50'
 
-    $Listener.Start()
+
+    try {
+        $Listener.Start()
+    } catch [Net.HttpListenerException] {
+        # if $_ -match 'failed to listen on prefix.*existing registration'
+        'Error, is port in use?' | Write-Error -ErrorId 'Start-GitServe.PortInUse' -Category ResourceExists
+        $Script:Listener = $null
+        return
+    }
 
     "$( (Get-Date).ToString('u')) GitServe: started listening on: http://$( $state.HostName ):$( $state.Port ))"
         | Write-Host
@@ -75,9 +84,10 @@
         Listener = $Script:Listener
     }
 
+    "before => startListenLoop" | Write-Host -fg 'yellow'
     Start-ListenLoop @startListenLoopSplat
+    "after  => startListenLoop" | Write-Host -fg 'yellow'
 
-    "Did it work?" | Write-Host -fg 'yellow'
     #   [Parameter()] [Runspace] $RunSpace = ([Runspace]::DefaultRunspace), # can param binding to default cause threadsafe issues, ie: is evaluated once, or before other lifetimes?
     #     [Net.HttpListener] $Listener = $Null,
     #     # [hashtable] $Query = [ordered]@{}, Request.Url ParsedQuery String

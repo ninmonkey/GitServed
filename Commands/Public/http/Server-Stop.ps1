@@ -27,20 +27,15 @@
             | Join-String -sep ', ' -SingleQuote -op 'GitServe Jobs already running: ' -os '. Stopping...'
             | Write-Warning
     }
-    $threadJobs | Stop-Job -PassThru | Receive-Job -AutoRemoveJob -Wait
+    # $threadJobs | Stop-Job -PassThru | Receive-Job -AutoRemoveJob -Wait
+    $threadJobs | Stop-Job -PassThru #| Receive-Job -AutoRemoveJob -Wait
 
-    # or if( $list.IsListening -or $null -ne $list ) {
-    if( $null -ne $list ) {
-        try {
-            ( $list )?.Close() # note: close() throws when listener is disposed. close() is okay.
-            ( $list )?.Stop()
-        } finally {
-            $list = $null
-            $script:Listener = $null
-        }
-        # $script:Listener = [Net.HttpListener]::new()
+    if( $List.IsListening ) {
+        # test debug streams, do they both emit?
+        "[v] $( (Get-Date).ToString('u')) GitServe: Stopped listening" | Write-Verbose -verbose
+        "[h] $( (Get-Date).ToString('u')) GitServe: Stopped listening" | Write-Host
+
+        $List.Close()
     }
-    "$( (Get-Date).ToString('u')) GitServe: Stopped listening"
-        | Write-Host
-
+    $list = $Null
 }
