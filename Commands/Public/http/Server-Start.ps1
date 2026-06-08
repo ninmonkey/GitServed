@@ -86,6 +86,13 @@
     #     ThrottleLimit = 50
     # }
     '🟢 before : Start-RouteThread' | Write-Host -fg 'salmon'
+
+    $JobName =  'GitServe http://{0}:{1}/' -f @(
+        $state.HostName
+        $state.Port
+    )
+
+
     # Start-RouteThread -RunSpace ([Runspace]::DefaultRunspace) -Listener $curListen
     Start-ThreadJob -ScriptBlock {
         param($MainRunspace, $Listener, $PwshWebConfig, $eventId = 'http')
@@ -114,7 +121,7 @@
                 }
             )
         }
-    } -Name $JobName -ArgumentList ([Runspace]::DefaultRunspace, $CurListener, $PwshWebConfig) -ThrottleLimit 50
+    } -Name $JobName -ArgumentList ([Runspace]::DefaultRunspace, $CurListener ) -ThrottleLimit 50
         # | Add-Member -NotePropertyMembers ([Ordered]@{HttpListener = $Listener }) -PassThru
         # | Add-Member -NotePropertyMembers ([Ordered]@{HttpListener = $CurListener }) -PassThru
 
