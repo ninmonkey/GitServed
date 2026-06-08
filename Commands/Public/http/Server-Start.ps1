@@ -40,7 +40,7 @@
         Stop-GitServe
     }
     $state = $Script:ModuleState
-    if( $Script:Listener = $Null ) {
+    if( $null -eq $Script:Listener ) {
         $Script:Listener = [Net.HttpListener]::new()
     }
     [Net.HttpListener] $curListener = $Script:Listener ?? [Net.HttpListener]::new()
