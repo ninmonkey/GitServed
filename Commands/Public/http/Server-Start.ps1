@@ -31,29 +31,36 @@
         )]
         [Alias('Ip')]
         [Parameter(Position = 0)]
-        [String] $Host = '127.0.0.1',
+        [String] $HostName = '127.0.0.1',
 
         [Parameter()]
         [int] $Port
     )
     $state = $Script:ModuleState
-    Stop-GitServe
+    if($false) {
+        # force manual this test
+        Stop-GitServe
+    }
 
     if( $Script:Listener = $Null ) {
         $Script:Listener = [Net.HttpListener]::new()
     }
 
     if( -not $Port ) { $Port = Get-Random -Minimum 3000 -Maximum 4000 }
-    $state.HostName = $Host
+    $state.HostName = $HostName
     $state.Port = $Port
-    [string[]] $prefix = 'http://{0}:{1}/' -f @(
+    $prefix = 'http://{0}:{1}/' -f @(
         $state.HostName
         $state.Port
     )
-
-    foreach( $curPrefix in $prefix ) {
-        $Listener.Prefixes.Add( $curPrefix )
+    $prefix | join-string -op 'Prefix: ' | Write-host -bg 'orange'
+    if( $null -eq $listener ) {
+        throw "Listener was null!"
     }
+    $Listener.Prefixes.Add( $curPrefix )
+
+    # foreach( $curPrefix in $prefix ) {
+    # }
     $Listener.Prefixes
         | Join-String -f '    add prefix {0}' | Write-Host -fg 'gray50'
 

@@ -28,12 +28,19 @@
             | Write-Warning
     }
     # $threadJobs | Stop-Job -PassThru | Receive-Job -AutoRemoveJob -Wait
-    $threadJobs | Stop-Job -PassThru #| Receive-Job -AutoRemoveJob -Wait
+    $threadJobs | Stop-Job -PassThru -Verbose #| Receive-Job -AutoRemoveJob -Wait
+    'before StopJob step [1]'
+    Get-Job | ? Name -Match 'GitServe.*' | Remove-Job -Verbose
+    'before StopJob step [2]'
+    Get-Job | ? Name -Match 'GitServe.*' | Stop-Job
+    'before StopJob step [3]'
+    Get-Job | ? Name -Match 'GitServe.*' | Receive-Job -AutoRemoveJob -Wait
 
     if( $List.IsListening ) {
         # test debug streams, do they both emit?
-        "[v] $( (Get-Date).ToString('u')) GitServe: Stopped listening" | Write-Verbose -verbose
-        "[h] $( (Get-Date).ToString('u')) GitServe: Stopped listening" | Write-Host
+        "[w] $( (Get-Date).ToString('u')) GitServe: Stopped listening" | Write-Warning
+        # "[v] $( (Get-Date).ToString('u')) GitServe: Stopped listening" | Write-Verbose -verbose
+        # "[h] $( (Get-Date).ToString('u')) GitServe: Stopped listening" | Write-Host
 
         $List.Close()
     }
