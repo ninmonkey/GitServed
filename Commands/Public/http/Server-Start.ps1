@@ -133,8 +133,8 @@
 
 
 
-    if( $curListen.IsListening ) { $curListen.close() }
-    Stop-GitServe
+    # if( $curListen.IsListening ) { $curListen.close() }
+    # Stop-GitServe
 
     # Start-RouteThread @startRouteThreadSplat
 
