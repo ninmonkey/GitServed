@@ -1,6 +1,4 @@
-﻿function
-
-function Start-GitServe {  # 'Start-GitServeServer' sounded bad
+﻿function Start-GitServe {  # 'Start-GitServeServer' sounded bad
     <#
     .synopsis
         Start listen server
@@ -88,7 +86,39 @@ function Start-GitServe {  # 'Start-GitServeServer' sounded bad
     #     ThrottleLimit = 50
     # }
     '🟢 before : Start-RouteThread' | Write-Host -fg 'salmon'
-    Start-RouteThread -RunSpace ([Runspace]::DefaultRunspace) -Listener $curListen
+    # Start-RouteThread -RunSpace ([Runspace]::DefaultRunspace) -Listener $curListen
+    Start-ThreadJob -ScriptBlock {
+        param($MainRunspace, $Listener, $PwshWebConfig, $eventId = 'http')
+        while ( $Listener.IsListening ) {
+            $nextRequest = $Listener.GetContextAsync()
+            while (-not ( $nextRequest.IsCompleted -or $nextRequest.IsFaulted -or $nextRequest.IsCanceled )) {
+
+            }
+            if ($nextRequest.IsFaulted) {
+                Write-Error -Exception $nextRequest.Exception -Category ProtocolError
+                continue
+            }
+            $context = $(try { $nextRequest.Result } catch { $_ })
+            if ($context.Request.Url -match '/favicon.ico$') {
+                $context.Response.StatusCode = 404
+                $context.Response.Close()
+                continue
+            }
+            $MainRunspace.Events.GenerateEvent(
+                $eventId, $Listener, @( $context, $context.Request, $context.Response ),
+                [Ordered]@{
+                    Url      = $context.Request.Url
+                    Context  = $context
+                    Request  = $context.Request
+                    Response = $context.Response
+                }
+            )
+        }
+    } -Name $JobName -ArgumentList ([Runspace]::DefaultRunspace, $CurListener, $PwshWebConfig) -ThrottleLimit 50
+        # | Add-Member -NotePropertyMembers ([Ordered]@{HttpListener = $Listener }) -PassThru
+        # | Add-Member -NotePropertyMembers ([Ordered]@{HttpListener = $CurListener }) -PassThru
+
+
     '🟢 after  : Start-RouteThread' | Write-Host -fg 'salmon'
 
     '🟢 done' | Write-Host -fg 'salmon'
