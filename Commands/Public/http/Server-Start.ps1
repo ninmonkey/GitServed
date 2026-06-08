@@ -45,6 +45,7 @@
     if( $Script:Listener = $Null ) {
         $Script:Listener = [Net.HttpListener]::new()
     }
+    [Net.HttpListener] $Listener = $Script:Listener
 
     if( -not $Port ) { $Port = Get-Random -Minimum 3000 -Maximum 4000 }
     $state.HostName = $HostName

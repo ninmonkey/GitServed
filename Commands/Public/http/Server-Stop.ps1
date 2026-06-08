@@ -29,12 +29,20 @@
     }
     # $threadJobs | Stop-Job -PassThru | Receive-Job -AutoRemoveJob -Wait
     $threadJobs | Stop-Job -PassThru -Verbose #| Receive-Job -AutoRemoveJob -Wait
-    'before StopJob step [1]'
+
+    'before StopJob step [1]' | Write-Verbose -verbose
+    (get-job).count | Write-Host -fg 'gray40'
     Get-Job | ? Name -Match 'GitServe.*' | Remove-Job -Verbose
-    'before StopJob step [2]'
+
+    'before StopJob step [2]' | Write-Verbose -verbose
+    (get-job).count | Write-Host -fg 'gray40'
     Get-Job | ? Name -Match 'GitServe.*' | Stop-Job
-    'before StopJob step [3]'
+
+    'before StopJob step [3]' | Write-Verbose -verbose
+    (get-job).count | Write-Host -fg 'gray40'
     Get-Job | ? Name -Match 'GitServe.*' | Receive-Job -AutoRemoveJob -Wait
+
+    (get-job).count | Write-Host -fg 'gray40'
 
     if( $List.IsListening ) {
         # test debug streams, do they both emit?
@@ -43,6 +51,6 @@
         # "[h] $( (Get-Date).ToString('u')) GitServe: Stopped listening" | Write-Host
 
         $List.Close()
+        $list = $Null
     }
-    $list = $Null
 }
