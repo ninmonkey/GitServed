@@ -36,16 +36,15 @@
         [Parameter()]
         [int] $Port
     )
-    $state = $Script:ModuleState
-    if($false) {
-        # force manual this test
+    if( $Script:Listener.IsListening ) {
         Stop-GitServe
     }
-
+    $state = $Script:ModuleState
     if( $Script:Listener = $Null ) {
         $Script:Listener = [Net.HttpListener]::new()
     }
-    [Net.HttpListener] $Listener = $Script:Listener
+    [Net.HttpListener] $curListener = $Script:Listener ?? [Net.HttpListener]::new()
+
 
     if( -not $Port ) { $Port = Get-Random -Minimum 3000 -Maximum 4000 }
     $state.HostName = $HostName
@@ -55,19 +54,19 @@
         $state.Port
     )
     $prefix | join-string -op 'Prefix: ' | Write-host -bg 'orange'
-    if( $null -eq $listener ) {
+    if( $null -eq $curListener ) {
         throw "Listener was null!"
     }
-    $Listener.Prefixes.Add( $curPrefix )
+    $curListener.Prefixes.Add( $prefix )
 
     # foreach( $curPrefix in $prefix ) {
     # }
-    $Listener.Prefixes
+    $curListener.Prefixes
         | Join-String -f '    add prefix {0}' | Write-Host -fg 'gray50'
 
 
     try {
-        $Listener.Start()
+        $curListener.Start()
     } catch [Net.HttpListenerException] {
         # if $_ -match 'failed to listen on prefix.*existing registration'
         'Error, is port in use?' | Write-Error -ErrorId 'Start-GitServe.PortInUse' -Category ResourceExists
@@ -82,7 +81,7 @@
 
     $startRouteThreadSplat = @{
         Runspace      = [runspace]::DefaultRunspace
-        Listener      = $Listener
+        Listener      = $curListener
         ThrottleLimit = 50
     }
 

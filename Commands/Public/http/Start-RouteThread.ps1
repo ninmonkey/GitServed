@@ -5,7 +5,11 @@
     #>
     param(
         [Parameter()] [Runspace] $Runspace, # can param binding to default cause threadsafe issues, ie: is evaluated once, or before other lifetimes?
-        [Net.HttpListener] $Listener = $Null,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNull()]
+        [Alias('Listener')]
+        [Net.HttpListener] $CurListener,
         # [hashtable] $Query = [ordered]@{}, Request.Url ParsedQuery String
         # [hashtable] $JobParams = [ordered]@{},
         [int] $ThrottleLimit = 50
@@ -18,7 +22,7 @@
 
     if( -not $Runspace ) {
         $Runspace = [Runspace]::DefaultRunspace
-        'Start-RouteThread: using default Runspace' | Write-Verbose
+        'Start-RouteThread: using default Runspace' | Write-warning
     }
 
     # Now we start our server in a thread job.
@@ -91,10 +95,10 @@
             #     <# waitForCompletionInCurrentThread: #> $waitForCompletionInCurrentThread)
             # #>
         }
-    } -Name $JobName -ArgumentList ( $Runspace, $Listener, $ThreadParams ) -ThrottleLimit $ThrottleLimit
+    } -Name $JobName -ArgumentList ( $Runspace, $CurListener, $ThreadParams ) -ThrottleLimit $ThrottleLimit
         | Add-Member -NotePropertyMembers (
             [Ordered]@{
-                HttpListener = $Listener
+                HttpListener = $CurListener
             }
         ) -PassThru
 }

@@ -1,4 +1,4 @@
-﻿function Start-GitServe {  # 'Start-GitServeServer' sounded bad
+﻿function Start-GitServeMin {  # 'Start-GitServeServer' sounded bad
     <#
     .synopsis
         Start listen server
@@ -22,7 +22,7 @@
     .LINK
         GitServe
     #>
-    [Alias('GitServe.Start')]
+    [Alias('GitServe.StartMin')]
     # [OutputType( [string] )]
     [CmdletBinding()]
     param(
@@ -36,21 +36,17 @@
         [Parameter()]
         [int] $Port
     )
-    if( $Script:Listener.IsListening ) {
+    $state = $Script:ModuleState
+
+    [Net.HttpListener] $curListen = $Script:Listener ?? [Net.HttpListener]::new()
+    if( $curListen.IsListening ) {
+        '😡 curListen.IsListening' | Write-host -fg 'orange'
+        "[w] $( (Get-Date).ToString('u')) GitServe: Stopped listening" | Write-Warning
+        $curListen.Close()
+        $curListen = $Null
+
         Stop-GitServe
     }
-    $state = $Script:ModuleState
-    if( $Script:Listener = $Null ) {
-        $Script:Listener = [Net.HttpListener]::new()
-    }
-    [Net.HttpListener] $Listener = $Script:Listener
-
-
-    if($false) {
-        # force manual this test
-    }
-
-
     if( -not $Port ) { $Port = Get-Random -Minimum 3000 -Maximum 4000 }
     $state.HostName = $HostName
     $state.Port = $Port
@@ -59,46 +55,53 @@
         $state.Port
     )
     $prefix | join-string -op 'Prefix: ' | Write-host -bg 'orange'
-    if( $null -eq $listener ) {
+    if( $null -eq $curListen ) {
         throw "Listener was null!"
     }
-    $Listener.Prefixes.Add( $curPrefix )
+    $curListen.Prefixes.Add( $prefix )
 
     # foreach( $curPrefix in $prefix ) {
     # }
-    $Listener.Prefixes
+    $curListen.Prefixes
         | Join-String -f '    add prefix {0}' | Write-Host -fg 'gray50'
 
 
-    try {
-        $Listener.Start()
-    } catch [Net.HttpListenerException] {
-        # if $_ -match 'failed to listen on prefix.*existing registration'
-        'Error, is port in use?' | Write-Error -ErrorId 'Start-GitServe.PortInUse' -Category ResourceExists
-        $Script:Listener = $null
-        return
-    }
+    # try {
+        $curListen.Start()
+    # } catch [Net.HttpListenerException] {
+    #     # if $_ -match 'failed to listen on prefix.*existing registration'
+    #     'Error, is port in use?' | Write-Error -ErrorId 'Start-GitServe.PortInUse' -Category ResourceExists
+    #     $Script:Listener = $null
+    #     return
+    # }
 
     "$( (Get-Date).ToString('u')) GitServe: started listening on: http://$( $state.HostName ):$( $state.Port ))"
         | Write-Host
 
     "Next: Start-RouteThread; Start-ListenLoop" | Write-Host -fg salmon
 
-    $startRouteThreadSplat = @{
-        Runspace      = [runspace]::DefaultRunspace
-        Listener      = $Listener
-        ThrottleLimit = 50
-    }
+    # $startRouteThreadSplat = @{
+    #     Runspace      = [runspace]::DefaultRunspace
+    #     Listener      = $curListen
+    #     ThrottleLimit = 50
+    # }
+    '🟢 before : Start-RouteThread' | Write-Host -fg 'salmon'
+    Start-RouteThread -RunSpace ([Runspace]::DefaultRunspace) -Listener $curListen
+    '🟢 after  : Start-RouteThread' | Write-Host -fg 'salmon'
 
-    Start-RouteThread @startRouteThreadSplat
+    '🟢 done' | Write-Host -fg 'salmon'
+    if( $curListen.IsListening ) { $curListen.close() }
+    Stop-GitServe
 
-    $startListenLoopSplat = @{
-        Listener = $Script:Listener
-    }
+    # Start-RouteThread @startRouteThreadSplat
 
-    "before => startListenLoop" | Write-Host -fg 'yellow'
-    Start-ListenLoop @startListenLoopSplat
-    "after  => startListenLoop" | Write-Host -fg 'yellow'
+    # $startListenLoopSplat = @{
+    #     Listener = $Script:Listener
+    # }
+
+    # "before => startListenLoop" | Write-Host -fg 'yellow'
+    # Start-ListenLoop @startListenLoopSplat
+    # "after  => startListenLoop" | Write-Host -fg 'yellow'
 
     #   [Parameter()] [Runspace] $RunSpace = ([Runspace]::DefaultRunspace), # can param binding to default cause threadsafe issues, ie: is evaluated once, or before other lifetimes?
     #     [Net.HttpListener] $Listener = $Null,
