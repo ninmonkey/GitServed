@@ -45,7 +45,7 @@
         $curListen.Close()
         $curListen = $Null
         Stop-GitServe
-        $curListen = [Net.HttpListener]::new()
+        $script:Listener = $curListen = [Net.HttpListener]::new()
     }
     if( -not $Port ) { $Port = Get-Random -Minimum 3000 -Maximum 4000 }
     $state.HostName = $HostName
@@ -129,6 +129,8 @@
         # | Add-Member -NotePropertyMembers ([Ordered]@{HttpListener = $Listener }) -PassThru
         # | Add-Member -NotePropertyMembers ([Ordered]@{HttpListener = $CurListener }) -PassThru
 
+    # Persist the listener for Stop-GitServe
+    # $Script:Listener = $curListen
 
     '🟢 after  : Start-ThreadJob' | Write-Host -fg 'salmon'
     '🟢 before  : while event blocking loop' | Write-Host -fg 'salmon'
@@ -136,7 +138,7 @@
 
     #region Watch for events
     # While the listener is listening:
-    while ($Listener.IsListening) {
+    while ($curListen.IsListening) {
         # Get every http* event
         foreach ($event in @(Get-Event HTTP*)) {
             # Try to get the context, request, and response from the event
@@ -268,32 +270,27 @@
             }
             Write-Host "Responded to $($request.Url) in $([DateTime]::Now - $event.TimeGenerated)" -ForegroundColor Cyan
         }
-        else {
-            $response.StatusCode = 404
-            $response.ContentType = 'application/json'
-            $body = @{
-                Error         = 'Endpoint not found'
-                RequestUrl    = $request.RawUrl
-                Query         = $request.QueryString
-                Method        = $request.HttpMethod
-                RequestHeader = $request.Headers
-            } | ConvertTo-Json -Depth 3
+            else {
+                $response.StatusCode = 404
+                $response.ContentType = 'application/json'
+                $body = @{
+                    Error         = 'Endpoint not found'
+                    RequestUrl    = $request.RawUrl
+                    Query         = $request.QueryString
+                    Method        = $request.HttpMethod
+                    RequestHeader = $request.Headers
+                } | ConvertTo-Json -Depth 3
 
-            $buffer = [System.Text.Encoding]::UTF8.GetBytes( $body )
-            $response.ContentLength64 = $buffer.Length
-            $response.ContentEncoding = [System.Text.Encoding]::UTF8
-            $response.OutputStream.Write( $buffer, 0, $buffer.Length )
-            $response.Close()
+                $buffer = [System.Text.Encoding]::UTF8.GetBytes( $body )
+                $response.ContentLength64 = $buffer.Length
+                $response.ContentEncoding = [System.Text.Encoding]::UTF8
+                $response.OutputStream.Write( $buffer, 0, $buffer.Length )
+                $response.Close()
+            }
+            $event | Remove-Event
         }
-        $event | Remove-Event
     }
-}
-#endregion Watch for events
-
-
-
+    #endregion Watch for events
     '🟢 after   : while event blocking loop' | Write-Host -fg 'salmon'
-
-
     '🟢 done' | Write-Host -fg 'salmon'
 }
