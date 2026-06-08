@@ -1,4 +1,6 @@
-﻿function Start-GitServe {  # 'Start-GitServeServer' sounded bad
+﻿function
+
+function Start-GitServe {  # 'Start-GitServeServer' sounded bad
     <#
     .synopsis
         Start listen server
@@ -36,16 +38,17 @@
         [Parameter()]
         [int] $Port
     )
-    if( $Script:Listener.IsListening ) {
+    $state = $Script:ModuleState
+
+    [Net.HttpListener] $curListen = $Script:Listener ?? [Net.HttpListener]::new()
+    if( $curListen.IsListening ) {
+        '😡 curListen.IsListening' | Write-host -fg 'orange'
+        "[w] $( (Get-Date).ToString('u')) GitServe: Stopped listening" | Write-Warning
+        $curListen.Close()
+        $curListen = $Null
+
         Stop-GitServe
     }
-    $state = $Script:ModuleState
-    if( $null -eq $Script:Listener ) {
-        $Script:Listener = [Net.HttpListener]::new()
-    }
-    [Net.HttpListener] $curListener = $Script:Listener ?? [Net.HttpListener]::new()
-
-
     if( -not $Port ) { $Port = Get-Random -Minimum 3000 -Maximum 4000 }
     $state.HostName = $HostName
     $state.Port = $Port
@@ -54,46 +57,57 @@
         $state.Port
     )
     $prefix | join-string -op 'Prefix: ' | Write-host -bg 'orange'
-    if( $null -eq $curListener ) {
+    if( $null -eq $curListen ) {
         throw "Listener was null!"
     }
-    $curListener.Prefixes.Add( $prefix )
+    $curListen.Prefixes.Add( $prefix )
 
     # foreach( $curPrefix in $prefix ) {
     # }
-    $curListener.Prefixes
+    $curListen.Prefixes
         | Join-String -f '    add prefix {0}' | Write-Host -fg 'gray50'
 
 
-    try {
-        $curListener.Start()
-    } catch [Net.HttpListenerException] {
-        # if $_ -match 'failed to listen on prefix.*existing registration'
-        'Error, is port in use?' | Write-Error -ErrorId 'Start-GitServe.PortInUse' -Category ResourceExists
-        $Script:Listener = $null
-        return
-    }
+    # try {
+        $curListen.Start()
+    # } catch [Net.HttpListenerException] {
+    #     # if $_ -match 'failed to listen on prefix.*existing registration'
+    #     'Error, is port in use?' | Write-Error -ErrorId 'Start-GitServe.PortInUse' -Category ResourceExists
+    #     $Script:Listener = $null
+    #     return
+    # }
 
     "$( (Get-Date).ToString('u')) GitServe: started listening on: http://$( $state.HostName ):$( $state.Port ))"
         | Write-Host
 
     "Next: Start-RouteThread; Start-ListenLoop" | Write-Host -fg salmon
 
-    $startRouteThreadSplat = @{
-        Runspace      = [runspace]::DefaultRunspace
-        Listener      = $curListener
-        ThrottleLimit = 50
-    }
+    # $startRouteThreadSplat = @{
+    #     Runspace      = [runspace]::DefaultRunspace
+    #     Listener      = $curListen
+    #     ThrottleLimit = 50
+    # }
+    '🟢 before : Start-RouteThread' | Write-Host -fg 'salmon'
+    Start-RouteThread -RunSpace ([Runspace]::DefaultRunspace) -Listener $curListen
+    '🟢 after  : Start-RouteThread' | Write-Host -fg 'salmon'
 
-    Start-RouteThread @startRouteThreadSplat
+    '🟢 done' | Write-Host -fg 'salmon'
 
-    $startListenLoopSplat = @{
-        Listener = $Script:Listener
-    }
 
-    "before => startListenLoop" | Write-Host -fg 'yellow'
-    Start-ListenLoop @startListenLoopSplat
-    "after  => startListenLoop" | Write-Host -fg 'yellow'
+
+
+    if( $curListen.IsListening ) { $curListen.close() }
+    Stop-GitServe
+
+    # Start-RouteThread @startRouteThreadSplat
+
+    # $startListenLoopSplat = @{
+    #     Listener = $Script:Listener
+    # }
+
+    # "before => startListenLoop" | Write-Host -fg 'yellow'
+    # Start-ListenLoop @startListenLoopSplat
+    # "after  => startListenLoop" | Write-Host -fg 'yellow'
 
     #   [Parameter()] [Runspace] $RunSpace = ([Runspace]::DefaultRunspace), # can param binding to default cause threadsafe issues, ie: is evaluated once, or before other lifetimes?
     #     [Net.HttpListener] $Listener = $Null,
