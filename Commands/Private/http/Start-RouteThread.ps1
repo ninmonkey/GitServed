@@ -4,17 +4,22 @@
         (internal function) ThreadJOb[s] that map and run routes
     #>
     param(
-        [Parameter()] [Runspace] $RunSpace = ([Runspace]::DefaultRunspace), # can param binding to default cause threadsafe issues, ie: is evaluated once, or before other lifetimes?
+        [Parameter()] [Runspace] $Runspace, # can param binding to default cause threadsafe issues, ie: is evaluated once, or before other lifetimes?
         [Net.HttpListener] $Listener = $Null,
         # [hashtable] $Query = [ordered]@{}, Request.Url ParsedQuery String
         # [hashtable] $JobParams = [ordered]@{},
         [int] $ThrottleLimit = 50
     )
-    $state = $Script:Module
+    $state = $Script:ModuleState
     $JobName =  'GitServe http://{0}:{1}/' -f @(
         $state.HostName
         $state.Port
     )
+
+    if( -not $Runspace ) {
+        $Runspace = [Runspace]::DefaultRunspace
+        'Start-RouteThread: using default Runspace' | Write-Verbose
+    }
 
     # Now we start our server in a thread job.
     # This lets us get requests in a background thread, and turn them into events.
@@ -30,10 +35,10 @@
         while ( $Listener.IsListening ) {
             [Threading.Tasks.Task[System.Net.HttpListenerContext]] $nextRequest = $Listener.GetContextAsync()
 
-            while (-not ( $nextRequest.IsCompleted -or $nextRequest.IsFaulted -or $nextRequest.IsCanceled )) {
-                '.' | Write-Host -bg 'salmon' -NoNewline
-                # no-op?
-            }
+            # while (-not ( $nextRequest.IsCompleted -or $nextRequest.IsFaulted -or $nextRequest.IsCanceled )) {
+            #     '.' | Write-Host -bg 'salmon' -NoNewline
+            #     # no-op?
+            # }
             if ($nextRequest.IsFaulted) {
                 Write-Error -Exception $nextRequest.Exception -Category ProtocolError
                 "NextRequest.IsFaulted" | Write-Host -bg orange
@@ -86,7 +91,7 @@
             #     <# waitForCompletionInCurrentThread: #> $waitForCompletionInCurrentThread)
             # #>
         }
-    } -Name $JobName -ArgumentList ( $MainRunspace, $Listener, $ThreadParams ) -ThrottleLimit $ThrottleLimit
+    } -Name $JobName -ArgumentList ( $Runspace, $Listener, $ThreadParams ) -ThrottleLimit $ThrottleLimit
         | Add-Member -NotePropertyMembers (
             [Ordered]@{
                 HttpListener = $Listener
