@@ -26,15 +26,17 @@
             | Join-String -sep ', ' -SingleQuote -op 'GitServe Jobs: ' -os '. Stopping...'
             | Write-Warning
 
+        $threadJobs | Stop-Job -PassThru | Receive-Job -AutoRemoveJob -Wait
+
         # Force stop immediately - suppress errors from closing runspace state
-        $threadJobs | Stop-Job -Force -Confirm:$false -ErrorAction SilentlyContinue
+        # $threadJobs | Stop-Job -Force -Confirm:$false -ErrorAction SilentlyContinue
 
-        # Brief delay for OS cleanup
-        Start-Sleep -Milliseconds 100
+        # # Brief delay for OS cleanup
+        # Start-Sleep -Milliseconds 100
 
-        # Force remove any remaining jobs without accessing their output
-        Get-Job | Where-Object Name -Match 'GitServe.*' `
-            | Remove-Job -Force -Confirm:$false -ErrorAction SilentlyContinue
+        # # Force remove any remaining jobs without accessing their output
+        # Get-Job | Where-Object Name -Match 'GitServe.*' `
+        #     | Remove-Job -Force -Confirm:$false -ErrorAction SilentlyContinue
     }
 
     # I thought I'd want to exit jobs then close the listener? testing the inverse.

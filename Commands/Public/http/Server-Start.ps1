@@ -44,8 +44,8 @@
         "[w] $( (Get-Date).ToString('u')) GitServe: Stopped listening" | Write-Warning
         $curListen.Close()
         $curListen = $Null
-
         Stop-GitServe
+        $curListen = [Net.HttpListener]::new()
     }
     if( -not $Port ) { $Port = Get-Random -Minimum 3000 -Maximum 4000 }
     $state.HostName = $HostName
@@ -57,6 +57,10 @@
     $prefix | join-string -op 'Prefix: ' | Write-host -bg 'orange'
     if( $null -eq $curListen ) {
         throw "Listener was null!"
+    }
+    if($null -eq $curListen ) {
+        "👽 Start => Can't add prefix if listen is null" | Write-warning
+        return
     }
     $curListen.Prefixes.Add( $prefix )
 
