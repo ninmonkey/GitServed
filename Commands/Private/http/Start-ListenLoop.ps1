@@ -1,9 +1,18 @@
 ﻿#region Watch for events
 function Start-ListenLoop {
+    [CmdletBinding()]
     param(
+        [ValidateNotNull()]
         [Parameter(Mandatory)]
         [Net.HttpListener] $Listener
     )
+
+    if( $null -eq $Listener ) {
+        Write-Warning 'Start-ListenLoop: Listener is null!'
+        # throw "Start-ListenLoop: Listener is Null"
+        write-error "Start-ListenLoop: Listener is Null"
+        return # test non-terminating
+    }
 
     # While the listener is listening:
     while ($Listener.IsListening) {
