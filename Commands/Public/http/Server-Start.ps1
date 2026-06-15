@@ -126,14 +126,19 @@
             )
         }
     } -Name $JobName -ArgumentList ([Runspace]::DefaultRunspace, $CurListener ) -ThrottleLimit 50
-        # | Add-Member -NotePropertyMembers ([Ordered]@{HttpListener = $Listener }) -PassThru
+        | Add-Member -NotePropertyMembers (
+            [Ordered]@{
+                HttpListener = $CurListener
+                Listener     = $CurListener
+            }
+        ) -PassThru
         # | Add-Member -NotePropertyMembers ([Ordered]@{HttpListener = $CurListener }) -PassThru
 
     # Persist the listener for Stop-GitServe
     # $Script:Listener = $curListen
 
-    '🟢 after  : Start-ThreadJob' | Write-Host -fg 'salmon'
-    '🟢 before  : while event blocking loop' | Write-Host -fg 'salmon'
+    # '🟢 after  : Start-ThreadJob' | Write-Host -fg 'salmon'
+    # '🟢 before  : while event blocking loop' | Write-Host -fg 'salmon'
 
 
     #region Watch for events
