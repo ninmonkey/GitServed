@@ -23,7 +23,7 @@
     $threadJobs = Get-Job | Where-Object Name -Match 'GitServe.*'
     if( $threadJobs.Count -gt 0 ) {
         $threadJobs.Name
-            | Join-String -sep ', ' -SingleQuote -op 'GitServe Jobs: ' -os '. Stopping...'
+            | Join-String -sep ', ' -SingleQuote -op 'GitServe Jobs: ' -os '. Stopping. Waiting for threads to stop...'
             | Write-Warning
 
         $threadJobs | Stop-Job -PassThru | Receive-Job -AutoRemoveJob -Wait

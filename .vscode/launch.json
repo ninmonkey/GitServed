@@ -20,7 +20,8 @@
             "name": "Pwsh: Debug_Harness 2.ps1 ┐ [GitServed]",
             "type": "PowerShell",
             "request": "launch",
-            "script": "${workspaceFolder}/scratch/debug_harness3.ps1",
+            // "script": "${workspaceFolder}/scratch/debug_harness.ps1",
+            "script": "${workspaceFolder}/scratch/debug_harness2.ps1",
             "cwd": "${cwd}",
             "presentation": {
                 "hidden": false,
