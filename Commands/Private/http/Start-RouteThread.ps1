@@ -1,4 +1,4 @@
-﻿function Start-RouteThreadOld {
+﻿function Start-RouteThread {
     <#
     .SYNOPSIS
         (internal function) ThreadJOb[s] that map and run routes
@@ -22,7 +22,7 @@
 
     if( -not $Runspace ) {
         $Runspace = [Runspace]::DefaultRunspace
-        'Start-RouteThreadOld: using default Runspace' | Write-warning
+        'Start-RouteThread: using default Runspace' | Write-warning
     }
 
     # Now we start our server in a thread job.

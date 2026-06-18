@@ -82,7 +82,7 @@
         ThrottleLimit = 50
     }
 
-    Start-RouteThreadOld @startRouteThreadOldSplat
+    Start-RouteThread @startRouteThreadOldSplat
 
     $startListenLoopSplat = @{
         Listener = $Script:Listener
