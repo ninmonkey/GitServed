@@ -5,23 +5,23 @@
 $DefaultPort         = 3006
 $DefaultHost         = '127.0.0.1'
 $WorkspaceModuleName = 'GitServe'
-$GitPath             = Gi -ea 'stop' 'H:\temp_clone\GitServedTemp'
+$GitPath             = Get-Item -ea 'stop' 'H:\temp_clone\GitServedTemp'
 
-$WorkspaceRoot  = gi -ea 'stop' (Join-Path $PSScriptRoot '..')
-$DotDebugPath   = Get-Item $PSCommandPath
-$ModBuildPath   = Gi -ea 'stop' (Join-Path $PSScriptRoot './Build.Module.ps1')
-$ModBuildEzPath = Gi -ea 'stop' (Join-Path $PSScriptRoot './Build.ezout.ps1')
+$WorkspaceRoot             = Get-Item -ea 'stop' (Join-Path $PSScriptRoot '..')
+$DotDebugHarness           = Get-Item $PSCommandPath
+$ModBuildPath              = Get-Item -ea 'stop' (Join-Path $PSScriptRoot './Build.Module.ps1')
+$ModBuildEzPath            = Get-Item -ea 'stop' (Join-Path $PSScriptRoot './Build.ezout.ps1')
 $WorkspaceModuleImportPath = Join-Path $WorkspaceRoot "../${WorkspaceModuleName}"
 
-if( $HarnessConfig.RebuildModule ) {
+if ( $HarnessConfig.RebuildModule ) {
     . $ModBuildPath
 }
-if( $HarnessConfig.RebuildFormat ) {
+if ( $HarnessConfig.RebuildFormat ) {
     . $ModBuildEzPath
 }
 
-$curModule = Import-Module $WorkspaceModuleImportPath -Passthru -Force -ea 'stop'
-$curModule.ExportedCommands.Values | Ft -auto
+$curModule = Import-Module $WorkspaceModuleImportPath -PassThru -Force -ea 'stop'
+$curModule.ExportedCommands.Values | Format-Table -auto
 
 GitServe.Start -Verbose -Port $DefaultPort -HostName $DefaultHost
 @'

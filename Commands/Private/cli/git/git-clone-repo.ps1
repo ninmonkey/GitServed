@@ -1,4 +1,4 @@
-﻿function _InvokeCli.Git.CloneRepo { # or FromDictionaryEntry
+﻿function InvokeCli.Git.CloneRepo { # or FromDictionaryEntry
     <#
     .SYNOPSIS
         private invoke cloning git command

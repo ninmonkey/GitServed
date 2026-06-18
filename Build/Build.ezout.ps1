@@ -3,7 +3,7 @@
 $myFile       = $MyInvocation.MyCommand.ScriptBlock.File
 $myModuleName = 'GitServe'
 $myRoot       = $myFile | Split-Path | Split-Path
-$cdStackName = "${myModuleName}.build"
+$cdStackName  = "${myModuleName}.build"
 Push-Location -StackName $cdStackName $myRoot
 $formatting   = @(
     # Add your own Write-FormatView here, or put them in a Formatting or Views directory

@@ -23,7 +23,7 @@ function Invoke-GitServeClone {
     )
     end {
         "enter => '$( $MyInvocation.MyCommand.Name )'" | Write-Debug
-        _InvokeCli.Git.CloneRepo -CloneUrl $CloneUrl -FromPath $FromPath -PSHost:$True
+        InvokeCli.Git.CloneRepo -CloneUrl $CloneUrl -FromPath $FromPath -PSHost:$True
     }
     # [pscustomobject]@{
     #     PSTypeName = 'GitServe.Git.Clone'
