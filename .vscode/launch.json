@@ -5,10 +5,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Pwsh: Debug_Harness.ps1 ┐ [GitServed]",
+            "name": "Pwsh: Import.Module.ps1 ┐ [GitServed]",
             "type": "PowerShell",
             "request": "launch",
-            "script": "${workspaceFolder}/scratch/debug_harness.ps1",
+            "script": "${workspaceFolder}/build/Import.Module.ps1",
             "cwd": "${cwd}",
             "presentation": {
                 "hidden": false,
