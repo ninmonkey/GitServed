@@ -1,20 +1,19 @@
-﻿function Start-GitServe {  # 'Start-GitServeServer' sounded bad
+﻿function Start-GitServe {
     <#
     .synopsis
         Start listen server
     .DESCRIPTION
+        Main entry point for the user
     .notes
         - calls Stop-GitServe if listener is active
         - aliased as Start-GitServe, GitServe.Start
     .example
-        # random ports
-        > GitServe Start
-
+        # default uses random ports on localhost:
+        > Start-GitServe
+        # or as an alias:
+        # GitServe.Start
     .example
-        > GitServe Start -Host ip -Port port
-    Maybe allow:
-        > GitServe Start ip:port
-        > GitServe Start port
+        > GitServe.Start -Host $ip -Port $port
     .LINK
         Start-GitServe
     .LINK
@@ -23,7 +22,6 @@
         GitServe
     #>
     [Alias('GitServe.Start')]
-    # [OutputType( [string] )]
     [CmdletBinding()]
     param(
         [ArgumentCompletions(
@@ -64,7 +62,6 @@
     $curListener.Prefixes
         | Join-String -f '    add prefix {0}' | Write-Host -fg 'gray50'
 
-
     try {
         $curListener.Start()
     } catch [Net.HttpListenerException] {
@@ -77,7 +74,7 @@
     "$( (Get-Date).ToString('u')) GitServe: started listening on: http://$( $state.HostName ):$( $state.Port ))"
         | Write-Host
 
-    "Next: Start-RouteThreadOld; Start-ListenLoop" | Write-Host -fg salmon
+    "Start-GitServe: <ctrl+c> to stop server" | Write-Host -fg darkblue
 
     $startRouteThreadOldSplat = @{
         Runspace      = [runspace]::DefaultRunspace
@@ -94,10 +91,4 @@
     "before => startListenLoop" | Write-Host -fg 'yellow'
     Start-ListenLoop @startListenLoopSplat
     "after  => startListenLoop" | Write-Host -fg 'yellow'
-
-    #   [Parameter()] [Runspace] $RunSpace = ([Runspace]::DefaultRunspace), # can param binding to default cause threadsafe issues, ie: is evaluated once, or before other lifetimes?
-    #     [Net.HttpListener] $Listener = $Null,
-    #     # [hashtable] $Query = [ordered]@{}, Request.Url ParsedQuery String
-    #     # [hashtable] $JobParams = [ordered]@{},
-        # [int] $ThrottleLimit = 50
 }

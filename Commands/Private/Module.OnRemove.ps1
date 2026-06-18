@@ -1,9 +1,9 @@
-﻿function OnRemoveModule_Handler { # or "Module.OnRemove" ?
+﻿function OnRemoveModule_Handler {
     <#
     .synopsis
-        Autocleanup module when module is unloaded
-    .notes
-        Could be named func 'Module.OnRemove' ?
+        Free resources when module unloads: Cleanup threads and HttpListeners
+    .description
+        Automatically called by event: '$ExecutionContext.SessionState.Module.OnRemove'
     #>
     "GitServe: OnRemove => Cleaning up HttpListener and ThreadJobs..." | Write-Host -Fore 'Yellow'
     Stop-GitServe
