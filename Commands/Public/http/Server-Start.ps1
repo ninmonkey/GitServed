@@ -76,13 +76,13 @@
 
     "Start-GitServe: <ctrl+c> to stop server" | Write-Host -fg darkblue
 
-    $startRouteThreadOldSplat = @{
+    $startRouteThreadSplat = @{
         Runspace      = [runspace]::DefaultRunspace
         Listener      = $curListener
         ThrottleLimit = 50
     }
 
-    Start-RouteThread @startRouteThreadOldSplat
+    Start-RouteThread @startRouteThreadSplat
 
     $startListenLoopSplat = @{
         Listener = $Script:Listener

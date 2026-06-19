@@ -1,7 +1,7 @@
 # App Layout for GetServed
 
 - `/Commands` - Powershell module commands
-- `/Server` - HttpServer Routes
+- `/Routes` - HttpServer Routes
 - `/Static` - Static Resources
 - `/Build` - Builds or assembles the module
 - `/.vscode` - vscode config for build and launching
