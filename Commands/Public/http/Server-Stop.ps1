@@ -20,6 +20,8 @@
     [Net.HttpListener] $list = $Script:Listener
     # 1] Stop ThreadJobs - force stop without waiting for output
     # 2] Stop, Close, and null HttpListener
+    Get-Job -State Completed | ? Name -match 'GitServe.*' | Remove-Job
+
     $threadJobs = Get-Job | Where-Object Name -Match 'GitServe.*'
     if( $threadJobs.Count -gt 0 ) {
         $threadJobs.Name

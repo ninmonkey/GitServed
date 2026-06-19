@@ -2,7 +2,7 @@
 .synopsis
     Rebuilds module source, TypeData/FormatData (if existing). Removes the module and force loads the new version.
 #>
-$DefaultPort         = 3006
+$DefaultPort         = 3001
 $DefaultHost         = '127.0.0.1'
 $WorkspaceModuleName = 'GitServe'
 $GitPath             = Get-Item -ea 'stop' 'H:\temp_clone\GitServedTemp'
