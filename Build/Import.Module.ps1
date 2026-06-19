@@ -11,7 +11,7 @@ $WorkspaceRoot             = Get-Item -ea 'stop' (Join-Path $PSScriptRoot '..')
 $DotDebugHarness           = Get-Item $PSCommandPath
 $ModBuildPath              = Get-Item -ea 'stop' (Join-Path $PSScriptRoot './Build.Module.ps1')
 $ModBuildEzPath            = Get-Item -ea 'stop' (Join-Path $PSScriptRoot './Build.ezout.ps1')
-$WorkspaceModuleImportPath = Join-Path $WorkspaceRoot "../${WorkspaceModuleName}"
+$WorkspaceModuleImportPath = Join-Path $WorkspaceRoot "${WorkspaceModuleName}"
 
 if ( $HarnessConfig.RebuildModule ) {
     . $ModBuildPath
