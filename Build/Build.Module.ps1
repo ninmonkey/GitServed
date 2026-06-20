@@ -86,7 +86,7 @@ function writeRegion {
 #endregion Internal Function Definitions
 
 #region Collect Functions
-$commands_public   = @(
+$commands_public   = @( # commands that are exported to the user
     # to recurse or not ?
     @( foreach ( $potentialDirectory in 'Commands/Public' ) {
         Get-ChildItem -Recurse -ea ignore -Path ( Join-Path $myRoot $potentialDirectory )
@@ -94,9 +94,18 @@ $commands_public   = @(
     | ? Name -NotMatch $Regex.SpecialModuleIgnores
     | ? Extension -in '.ps1'
 )
-$commands_private   = @(
+$commands_private   = @( # internal commands that are not exported
     # to recurse or not ?
     @( foreach ( $potentialDirectory in 'Commands/Private') {
+        Get-ChildItem -Recurse -ea ignore -Path ( Join-Path $myRoot $potentialDirectory )
+    })
+    | ? Name -NotMatch $Regex.SpecialModuleIgnores
+    | ? Extension -in '.ps1'
+)
+
+$routes_public   = @(
+    # commands that are exported to the user
+    @( foreach ( $potentialDirectory in 'Routes/Public') {
         Get-ChildItem -Recurse -ea ignore -Path ( Join-Path $myRoot $potentialDirectory )
     })
     | ? Name -NotMatch $Regex.SpecialModuleIgnores
@@ -119,7 +128,7 @@ $commands_summary.AddRange(
                 # Path          = $Item
                 FullName      = $Item                                  # convert to alias
                 # Documentation = ''
-                # HasRequiresStatment        = $false
+                # HasRequiresStatement       = $false
                 # HasUsingNamespaceStatement = $false
             }
         }
@@ -141,7 +150,30 @@ $commands_summary.AddRange(
                 # Path          = $Item
                 FullName      = $Item                                  # convert to alias
                 # Documentation = ''
-                # HasRequiresStatment        = $false
+                # HasRequiresStatement       = $false
+                # HasUsingNamespaceStatement = $false
+            }
+        }
+        | Sort-Object Verb, Name
+    )
+)
+
+$commands_summary.AddRange(
+    @(
+        $routes_public
+        | %{
+            $item = $_
+            [pscustomobject]@{
+                PSTypeName    = 'build.getserve.route.public'
+                Public        = $true
+                Name          = $Item.Name
+                Size          = '{0:n2} kb' -f ( $Item.Length / 1kb )
+                LastWriteTime = $Item.LastWriteTime
+                Verb          = 'HttpGet'
+                # Path          = $Item
+                FullName      = $Item                                  # convert to alias
+                # Documentation = ''
+                # HasRequiresStatement        = $false
                 # HasUsingNamespaceStatement = $false
             }
         }
