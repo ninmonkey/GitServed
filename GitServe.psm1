@@ -1,6 +1,6 @@
 <#
 .Description
-    Module built on: 2026-06-08 10:57:25Z
+    Module built on: 2026-06-20 14:02:19Z
 #>
 
 #region Module.Before.ps1
@@ -27,7 +27,57 @@ $script:ModuleState = [hashtable]::Synchronized(@{
 
 #region Private Module Functions
 
-function _InvokeCli.Git.CloneRepo { # or FromDictionaryEntry
+function GetConfig.ClonedRepoRoot {
+    <#
+    .synopsis
+        (internal) Get app configuration for root directories to search ( ie: local, vs docker, etc )
+    .DESCRIPTION
+        Get root directories for cloned repos.
+    #>
+    [OutputType( [System.IO.DirectoryInfo[]] )]
+    [CmdletBinding()]
+    param()
+
+    $potential = @( 'H:/RootClonedRepos', '/cloned-repos' )
+
+    $rootPaths = @(
+        $potential
+        | Where-Object { Test-Path $_ } | Get-Item -ea ignore
+    )
+
+    return $rootPaths
+}
+
+function GetConfig.Host {
+    <#
+    .synopsis
+        (internal) Get app configuration for root directories to search ( ie: local, vs docker, etc )
+    .description
+    EnvVars have priority, else fall back to defaults.
+
+        GITSERVE_PORT = 3001
+        GITSERVE_HOST = 127.0.0.1 # or '*' when using docker
+
+    .DESCRIPTION
+        Get Url for Host, Port, Authority, etc
+    #>
+
+    [CmdletBinding()]
+    param()
+
+    $Port     = $Env:GITSERVE_PORT ?? 3001
+    $HostName = $Env:GITSERVE_HOST ?? '127.0.0.1'
+    $Url      = "http://${HostName}:${Port}"
+
+    [pscustomobject]@{
+        PSTypeName = 'GitServe.Config.Host'
+        Host       = $HostName
+        Port       = $Port
+        Url        = $Url                    # ie: UriPartial::Authority
+    }
+}
+
+function InvokeCli.Git.CloneRepo { # or FromDictionaryEntry
     <#
     .SYNOPSIS
         private invoke cloning git command
@@ -101,12 +151,12 @@ function _InvokeCli.Git.CloneRepo { # or FromDictionaryEntry
     #endregion Invoke Real Git Args
 }
 
-function OnRemoveModule_Handler { # or "Module.OnRemove" ?
+function OnRemoveModule_Handler {
     <#
     .synopsis
-        Autocleanup module when module is unloaded
-    .notes
-        Could be named func 'Module.OnRemove' ?
+        Free resources when module unloads: Cleanup threads and HttpListeners
+    .description
+        Automatically called by event: '$ExecutionContext.SessionState.Module.OnRemove'
     #>
     "GitServe: OnRemove => Cleaning up HttpListener and ThreadJobs..." | Write-Host -Fore 'Yellow'
     Stop-GitServe
@@ -323,364 +373,6 @@ function Start-ListenLoop {
 }
 #endregion Watch for events
 
-
-#endregion Private Module Functions
-
-
-#region Public Functions
-
-function Format-GitServeRelativePath {
-    <#
-    .synopsis
-        Abbreviate a full path relative to another directory
-    .example
-        # Print paths relative the current Directory
-        gci . -Depth 2 | Format-GitServeRelativePath
-    .example
-        > Get-Item 'c:\git\pwsh\SeeminglyScience'
-            | Format-GitServeRelativePath 'c:\git'
-
-        pwsh\SeeminglyScience
-    #>
-    [Alias('GitServe.Format-RelativePath')]
-    [OutputType( [string] )]
-    [CmdletBinding()]
-    param(
-        [Alias('BasePath')]
-        [Parameter(Position = 0)]
-        $RelativeTo = '.',
-
-        # Strings / paths to convert
-        [Alias('PSPath', 'FullName', 'InObj')]
-        [Parameter(Mandatory, ValueFromPipelineByPropertyName, ValueFromPipeline)]
-        [string[]] $Path,
-
-        # Emit an object with path properties, including the raw original path
-        [Alias('PassThru')]
-        [switch] $AsObject
-    )
-    process {
-        $RelativeTo = Get-Item $RelativeTo
-        foreach( $item in ( $Path | Convert-Path ) ) {
-            $relPath = [System.IO.Path]::GetRelativePath(
-                <# string: relativeTo #> $RelativeTo,
-                <# string: path #>  $Item )
-
-            if( -not $AsObject ) {
-                $relPath
-                continue
-            } else {
-                [pscustomobject]@{
-                    PSTypeName = 'GitServe.RelativePath'
-                    Path       = $relPath
-                    Original   = $Item
-                    RelativeTo = $RelativeTo
-                }
-                continue
-            }
-        }
-    }
-}
-
-# function Invoke-GitClone {
-function Invoke-GitServeClone {
-    <#
-    .synopsis
-        Clone a public git repo using the 'git' cli ( without using 'gh' )
-    .example
-        > GitServe.Git.Clone 'https://github.com/BurntSushi/ripgrep.git'
-    #>
-    [Alias(
-        'GitServe.Git.Clone'
-    )]
-    [CmdletBinding( DefaultParameterSetName = 'CloneFromRawUrl' )]
-    param(
-        # Git url to clone
-        [Parameter( ParameterSetName = 'CloneFromRawUrl', Position = 0, Mandatory )]
-        [Alias( 'Repo', 'Clone', 'Url', 'GitUrl')]
-        [ArgumentCompletions(
-            'https://github.com/BurntSushi/ripgrep.git'
-        )]
-        [string] $CloneUrl, # ( string because not all valid git clone urls are valid,
-
-        [string] $FromPath = '.'
-    )
-    end {
-        "enter => '$( $MyInvocation.MyCommand.Name )'" | Write-Debug
-        _InvokeCli.Git.CloneRepo -CloneUrl $CloneUrl -FromPath $FromPath -PSHost:$True
-    }
-    # [pscustomobject]@{
-    #     PSTypeName = 'GitServe.Git.Clone'
-    #     CloneUrl = $CloneUrl
-    #     Result = '<NYI>'
-    # }
-}
-
-function Start-GitServe {  # 'Start-GitServeServer' sounded bad
-    <#
-    .synopsis
-        Start listen server
-    .DESCRIPTION
-    .notes
-        - calls Stop-GitServe if listener is active
-        - aliased as Start-GitServe, GitServe.Start
-    .example
-        # random ports
-        > GitServe Start
-
-    .example
-        > GitServe Start -Host ip -Port port
-    Maybe allow:
-        > GitServe Start ip:port
-        > GitServe Start port
-    .LINK
-        Start-GitServe
-    .LINK
-        Stop-GitServe
-    .LINK
-        GitServe
-    #>
-    [Alias('GitServe.Start')]
-    # [OutputType( [string] )]
-    [CmdletBinding()]
-    param(
-        [ArgumentCompletions(
-            "'127.0.0.1'", "'*'", "'localhost'" # "'0.0.0.0'", "'*'", "'localhost'"
-        )]
-        [Alias('Ip')]
-        [Parameter(Position = 0)]
-        [String] $HostName = '127.0.0.1',
-
-        [Parameter()]
-        [int] $Port
-    )
-    if( $Script:Listener.IsListening ) {
-        Stop-GitServe
-    }
-    $state = $Script:ModuleState
-    if( $null -eq $Script:Listener ) {
-        $Script:Listener = [Net.HttpListener]::new()
-    }
-    [Net.HttpListener] $curListener = $Script:Listener ?? [Net.HttpListener]::new()
-
-
-    if( -not $Port ) { $Port = Get-Random -Minimum 3000 -Maximum 4000 }
-    $state.HostName = $HostName
-    $state.Port = $Port
-    $prefix = 'http://{0}:{1}/' -f @(
-        $state.HostName
-        $state.Port
-    )
-    $prefix | join-string -op 'Prefix: ' | Write-host -bg 'orange'
-    if( $null -eq $curListener ) {
-        throw "Listener was null!"
-    }
-    $curListener.Prefixes.Add( $prefix )
-
-    # foreach( $curPrefix in $prefix ) {
-    # }
-    $curListener.Prefixes
-        | Join-String -f '    add prefix {0}' | Write-Host -fg 'gray50'
-
-
-    try {
-        $curListener.Start()
-    } catch [Net.HttpListenerException] {
-        # if $_ -match 'failed to listen on prefix.*existing registration'
-        'Error, is port in use?' | Write-Error -ErrorId 'Start-GitServe.PortInUse' -Category ResourceExists
-        $Script:Listener = $null
-        return
-    }
-
-    "$( (Get-Date).ToString('u')) GitServe: started listening on: http://$( $state.HostName ):$( $state.Port ))"
-        | Write-Host
-
-    "Next: Start-RouteThread; Start-ListenLoop" | Write-Host -fg salmon
-
-    $startRouteThreadSplat = @{
-        Runspace      = [runspace]::DefaultRunspace
-        Listener      = $curListener
-        ThrottleLimit = 50
-    }
-
-    Start-RouteThread @startRouteThreadSplat
-
-    $startListenLoopSplat = @{
-        Listener = $Script:Listener
-    }
-
-    "before => startListenLoop" | Write-Host -fg 'yellow'
-    Start-ListenLoop @startListenLoopSplat
-    "after  => startListenLoop" | Write-Host -fg 'yellow'
-
-    #   [Parameter()] [Runspace] $RunSpace = ([Runspace]::DefaultRunspace), # can param binding to default cause threadsafe issues, ie: is evaluated once, or before other lifetimes?
-    #     [Net.HttpListener] $Listener = $Null,
-    #     # [hashtable] $Query = [ordered]@{}, Request.Url ParsedQuery String
-    #     # [hashtable] $JobParams = [ordered]@{},
-        # [int] $ThrottleLimit = 50
-}
-
-function Start-GitServeMin {  # 'Start-GitServeServer' sounded bad
-    <#
-    .synopsis
-        Start listen server
-    .DESCRIPTION
-    .notes
-        - calls Stop-GitServe if listener is active
-        - aliased as Start-GitServe, GitServe.Start
-    .example
-        # random ports
-        > GitServe Start
-
-    .example
-        > GitServe Start -Host ip -Port port
-    Maybe allow:
-        > GitServe Start ip:port
-        > GitServe Start port
-    .LINK
-        Start-GitServe
-    .LINK
-        Stop-GitServe
-    .LINK
-        GitServe
-    #>
-    [Alias('GitServe.StartMin')]
-    # [OutputType( [string] )]
-    [CmdletBinding()]
-    param(
-        [ArgumentCompletions(
-            "'127.0.0.1'", "'*'", "'localhost'" # "'0.0.0.0'", "'*'", "'localhost'"
-        )]
-        [Alias('Ip')]
-        [Parameter(Position = 0)]
-        [String] $HostName = '127.0.0.1',
-
-        [Parameter()]
-        [int] $Port
-    )
-    $state = $Script:ModuleState
-
-    [Net.HttpListener] $curListen = $Script:Listener ?? [Net.HttpListener]::new()
-    if( $curListen.IsListening ) {
-        '😡 curListen.IsListening' | Write-host -fg 'orange'
-        "[w] $( (Get-Date).ToString('u')) GitServe: Stopped listening" | Write-Warning
-        $curListen.Close()
-        $curListen = $Null
-
-        Stop-GitServe
-    }
-    if( -not $Port ) { $Port = Get-Random -Minimum 3000 -Maximum 4000 }
-    $state.HostName = $HostName
-    $state.Port = $Port
-    $prefix = 'http://{0}:{1}/' -f @(
-        $state.HostName
-        $state.Port
-    )
-    $prefix | join-string -op 'Prefix: ' | Write-host -bg 'orange'
-    if( $null -eq $curListen ) {
-        throw "Listener was null!"
-    }
-    $curListen.Prefixes.Add( $prefix )
-
-    # foreach( $curPrefix in $prefix ) {
-    # }
-    $curListen.Prefixes
-        | Join-String -f '    add prefix {0}' | Write-Host -fg 'gray50'
-
-
-    # try {
-        $curListen.Start()
-    # } catch [Net.HttpListenerException] {
-    #     # if $_ -match 'failed to listen on prefix.*existing registration'
-    #     'Error, is port in use?' | Write-Error -ErrorId 'Start-GitServe.PortInUse' -Category ResourceExists
-    #     $Script:Listener = $null
-    #     return
-    # }
-
-    "$( (Get-Date).ToString('u')) GitServe: started listening on: http://$( $state.HostName ):$( $state.Port ))"
-        | Write-Host
-
-    "Next: Start-RouteThread; Start-ListenLoop" | Write-Host -fg salmon
-
-    # $startRouteThreadSplat = @{
-    #     Runspace      = [runspace]::DefaultRunspace
-    #     Listener      = $curListen
-    #     ThrottleLimit = 50
-    # }
-    '🟢 before : Start-RouteThread' | Write-Host -fg 'salmon'
-    Start-RouteThread -RunSpace ([Runspace]::DefaultRunspace) -Listener $curListen
-    '🟢 after  : Start-RouteThread' | Write-Host -fg 'salmon'
-
-    '🟢 done' | Write-Host -fg 'salmon'
-    if( $curListen.IsListening ) { $curListen.close() }
-    Stop-GitServe
-
-    # Start-RouteThread @startRouteThreadSplat
-
-    # $startListenLoopSplat = @{
-    #     Listener = $Script:Listener
-    # }
-
-    # "before => startListenLoop" | Write-Host -fg 'yellow'
-    # Start-ListenLoop @startListenLoopSplat
-    # "after  => startListenLoop" | Write-Host -fg 'yellow'
-
-    #   [Parameter()] [Runspace] $RunSpace = ([Runspace]::DefaultRunspace), # can param binding to default cause threadsafe issues, ie: is evaluated once, or before other lifetimes?
-    #     [Net.HttpListener] $Listener = $Null,
-    #     # [hashtable] $Query = [ordered]@{}, Request.Url ParsedQuery String
-    #     # [hashtable] $JobParams = [ordered]@{},
-        # [int] $ThrottleLimit = 50
-}
-
-function Stop-GitServe {  # 'Stop-GitServeServer' sounded bad
-    <#
-    .synopsis
-        Stop listen server. Dispose of HttpListener and ThreadJobs
-    .example
-        > GitServe Stop
-    .LINK
-        Start-GitServe
-    .LINK
-        Stop-GitServe
-    .LINK
-        GitServe
-    .LINK
-        https://learn.microsoft.com/en-us/dotnet/api/system.net.httplistener?view=net-10.0
-    #>
-    [Alias('GitServe.Stop')]
-    [CmdletBinding()]
-    param( )
-
-    [Net.HttpListener] $list = $Script:Listener
-    # 1] Stop ThreadJobs
-    # 2] Stop, Close, and null HttpListener
-    $threadJobs = Get-Job | ? Name -Match 'GitServe.*'
-    if( $threadJobs.Count -gt 0 ) {
-        $threadJobs.Name
-            | Join-String -sep ', ' -SingleQuote -op 'GitServe Jobs already running: ' -os '. Stopping...'
-            | Write-Warning
-    }
-
-    # I thought I'd want to exit jobs then close the listener? testing the inverse.
-    if( $List.IsListening ) {
-        "[w] $( (Get-Date).ToString('u')) GitServe: Stopped listening" | Write-Warning
-        $List.Close()
-        $list = $Null
-    }
-    # # old method:
-    # $threadJobs | Stop-Job -PassThru | Receive-Job -AutoRemoveJob -Wait
-
-    # Force stop jobs immediately, don't wait for output
-    if ($threadJobs.Count -gt 0) {
-        return
-        $threadJobs | Stop-Job -Force -Confirm:$false -ErrorAction Continue
-        Start-Sleep -Milliseconds 250
-        # Forcefully remove any remaining jobs
-        Get-Job | Where-Object Name -Match 'GitServe.*' | Remove-Job -Force -Confirm:$false -ErrorAction Continue
-    }
-
-}
-
 function Start-RouteThread {
     <#
     .SYNOPSIS
@@ -784,6 +476,285 @@ function Start-RouteThread {
                 HttpListener = $CurListener
             }
         ) -PassThru
+}
+
+
+#endregion Private Module Functions
+
+
+#region Public Functions
+
+function Format-GitServeRelativePath {
+    <#
+    .synopsis
+        Abbreviate a full path relative to another directory
+    .example
+        # Print paths relative the current Directory
+        gci . -Depth 2 | Format-GitServeRelativePath
+    .example
+        > Get-Item 'c:\git\pwsh\SeeminglyScience'
+            | Format-GitServeRelativePath 'c:\git'
+
+        pwsh\SeeminglyScience
+    #>
+    [Alias('GitServe.Format-RelativePath')]
+    [OutputType( [string] )]
+    [CmdletBinding()]
+    param(
+        [Alias('BasePath')]
+        [Parameter(Position = 0)]
+        $RelativeTo = '.',
+
+        # Strings / paths to convert
+        [Alias('PSPath', 'FullName', 'InObj')]
+        [Parameter(Mandatory, ValueFromPipelineByPropertyName, ValueFromPipeline)]
+        [string[]] $Path,
+
+        # Emit an object with path properties, including the raw original path
+        [Alias('PassThru')]
+        [switch] $AsObject
+    )
+    process {
+        $RelativeTo = Get-Item $RelativeTo
+        foreach( $item in ( $Path | Convert-Path ) ) {
+            $relPath = [System.IO.Path]::GetRelativePath(
+                <# string: relativeTo #> $RelativeTo,
+                <# string: path #>  $Item )
+
+            if( -not $AsObject ) {
+                $relPath
+                continue
+            } else {
+                [pscustomobject]@{
+                    PSTypeName = 'GitServe.RelativePath'
+                    Path       = $relPath
+                    Original   = $Item
+                    RelativeTo = $RelativeTo
+                }
+                continue
+            }
+        }
+    }
+}
+
+# function Invoke-GitClone {
+function Invoke-GitServeClone {
+    <#
+    .synopsis
+        Clone a public git repo using the 'git' cli ( without using 'gh' )
+    .example
+        > GitServe.Git.Clone 'https://github.com/BurntSushi/ripgrep.git'
+    #>
+    [Alias(
+        'GitServe.Git.Clone'
+    )]
+    [CmdletBinding( DefaultParameterSetName = 'CloneFromRawUrl' )]
+    param(
+        # Git url to clone
+        [Parameter( ParameterSetName = 'CloneFromRawUrl', Position = 0, Mandatory )]
+        [Alias( 'Repo', 'Clone', 'Url', 'GitUrl')]
+        [ArgumentCompletions(
+            'https://github.com/BurntSushi/ripgrep.git'
+        )]
+        [string] $CloneUrl, # ( string because not all valid git clone urls are valid,
+
+        [string] $FromPath = '.'
+    )
+    end {
+        "enter => '$( $MyInvocation.MyCommand.Name )'" | Write-Debug
+        InvokeCli.Git.CloneRepo -CloneUrl $CloneUrl -FromPath $FromPath -PSHost:$True
+    }
+    # [pscustomobject]@{
+    #     PSTypeName = 'GitServe.Git.Clone'
+    #     CloneUrl = $CloneUrl
+    #     Result = '<NYI>'
+    # }
+}
+
+function Start-GitServe {
+    <#
+    .synopsis
+        Start listen server
+    .DESCRIPTION
+        Main entry point for the user
+    .notes
+        - calls Stop-GitServe if listener is active
+        - aliased as Start-GitServe, GitServe.Start
+    .example
+        # default uses random ports on localhost:
+        > Start-GitServe
+        # or as an alias:
+        # GitServe.Start
+    .example
+        > GitServe.Start -Host $ip -Port $port
+    .LINK
+        Start-GitServe
+    .LINK
+        Stop-GitServe
+    .LINK
+        GitServe
+    #>
+    [Alias('GitServe.Start')]
+    [CmdletBinding()]
+    param(
+        [ArgumentCompletions(
+            "'127.0.0.1'", "'*'", "'localhost'" # "'0.0.0.0'", "'*'", "'localhost'"
+        )]
+        [Alias('Ip')]
+        [Parameter(Position = 0)]
+        [String] $HostName = '127.0.0.1',
+
+        [Parameter()]
+        [int] $Port
+    )
+    if( $Script:Listener.IsListening ) {
+        Stop-GitServe
+    }
+    $state = $Script:ModuleState
+    if( $null -eq $Script:Listener ) {
+        $Script:Listener = [Net.HttpListener]::new()
+    }
+    [Net.HttpListener] $curListener = $Script:Listener ?? [Net.HttpListener]::new()
+
+
+    if( -not $Port ) { $Port = Get-Random -Minimum 3000 -Maximum 4000 }
+    $state.HostName = $HostName
+    $state.Port = $Port
+    $prefix = 'http://{0}:{1}/' -f @(
+        $state.HostName
+        $state.Port
+    )
+    $prefix | join-string -op 'Prefix: ' | Write-host -bg 'orange'
+    if( $null -eq $curListener ) {
+        throw "Listener was null!"
+    }
+    $curListener.Prefixes.Add( $prefix )
+
+    # foreach( $curPrefix in $prefix ) {
+    # }
+    $curListener.Prefixes
+        | Join-String -f '    add prefix {0}' | Write-Host -fg 'gray50'
+
+    try {
+        $curListener.Start()
+    } catch [Net.HttpListenerException] {
+        # if $_ -match 'failed to listen on prefix.*existing registration'
+        'Error, is port in use?' | Write-Error -ErrorId 'Start-GitServe.PortInUse' -Category ResourceExists
+        $Script:Listener = $null
+        return
+    }
+
+    "$( (Get-Date).ToString('u')) GitServe: started listening on: http://$( $state.HostName ):$( $state.Port ))"
+        | Write-Host
+
+    "Start-GitServe: <ctrl+c> to stop server" | Write-Host -fg darkblue
+
+    $startRouteThreadSplat = @{
+        Runspace      = [runspace]::DefaultRunspace
+        Listener      = $curListener
+        ThrottleLimit = 50
+    }
+
+    Start-RouteThread @startRouteThreadSplat
+
+    $startListenLoopSplat = @{
+        Listener = $Script:Listener
+    }
+
+    "before => startListenLoop" | Write-Host -fg 'yellow'
+    Start-ListenLoop @startListenLoopSplat
+    "after  => startListenLoop" | Write-Host -fg 'yellow'
+}
+
+function Stop-GitServe {  # 'Stop-GitServeServer' sounded bad
+    <#
+    .synopsis
+        Stop listen server. Dispose of HttpListener and ThreadJobs
+    .example
+        > GitServe Stop
+    .LINK
+        Start-GitServe
+    .LINK
+        Stop-GitServe
+    .LINK
+        GitServe
+    .LINK
+        https://learn.microsoft.com/en-us/dotnet/api/system.net.httplistener?view=net-10.0
+    #>
+    [Alias('GitServe.Stop')]
+    [CmdletBinding()]
+    param( )
+
+    [Net.HttpListener] $list = $Script:Listener
+    # 1] Stop ThreadJobs - force stop without waiting for output
+    # 2] Stop, Close, and null HttpListener
+    Get-Job -State Completed | ? Name -match 'GitServe.*' | Remove-Job
+
+    $threadJobs = Get-Job | Where-Object Name -Match 'GitServe.*'
+    if( $threadJobs.Count -gt 0 ) {
+        $threadJobs.Name
+            | Join-String -sep ', ' -SingleQuote -op 'GitServe Jobs: ' -os '. Stopping. Waiting for threads to stop...'
+            | Write-Warning
+
+        $threadJobs | Stop-Job -PassThru | Receive-Job -AutoRemoveJob -Wait
+
+        # Force stop immediately - suppress errors from closing runspace state
+        # $threadJobs | Stop-Job -Force -Confirm:$false -ErrorAction SilentlyContinue
+
+        # # Brief delay for OS cleanup
+        # Start-Sleep -Milliseconds 100
+
+        # # Force remove any remaining jobs without accessing their output
+        # Get-Job | Where-Object Name -Match 'GitServe.*' `
+        #     | Remove-Job -Force -Confirm:$false -ErrorAction SilentlyContinue
+    }
+
+    # I thought I'd want to exit jobs then close the listener? testing the inverse.
+    if( $List.IsListening ) {
+        "[w] $( (Get-Date).ToString('u')) GitServe: Stopped listening" | Write-Warning
+        $List.Close()
+        $list = $Null
+    }
+
+}
+
+function /repo/list {
+    <#
+    .SYNOPSIS
+        Return user's cloned repos
+    .description
+    .NOTES
+        Response is not explicitly cached
+    #>
+    [OutputType( 'GitServe.Route.Repo.List' )]
+    param()
+
+    $searchRoot = @( GetConfig.ClonedRepoRoot )
+    $findGitRepos = Get-ChildItem $searchRoot -Filter '.git' -Directory -Force -Recurse | ForEach-Object Parent
+
+    $records = @(
+        foreach ($repoPath in $findGitRepos) {
+            $absolutePath = $repoPath.FullName
+            $remote = ( & git -C $absolutePath remote get-url origin 2>$null ) ?? '<empty-remote>'
+            $commitCount = ( & git -C $absolutePath rev-list --count HEAD )
+            $newestCommitRelative = ( & git -C $absolutePath log -1 --format=%cr )
+            $newestCommitDateOnly = ( & git -C $absolutePath log -n 1 --format=%cd --date=format:'%Y-%m-%d' )
+            $ownerPathName = $repoPath.FullName | Split-path -Parent | split-path  -Leaf
+
+            [pscustomobject]@{
+                PSTypeName = 'GitServe.Route.Repo.List'
+                Name                 = $repoPath.BaseName
+                Path                 = $repoPath.FullName
+                Owner                = $ownerPathName
+                NewestCommitDate     = $newestCommitDateOnly
+                NewestCommitRelative = $newestCommitRelative
+                CommitCount          = $commitCount
+                Remote               = $remote
+                # '( git remote get-url origin 2>$null | out-null ) ?? '<missing>''
+            }
+        }
+    )
+    return $records
 }
 
 
