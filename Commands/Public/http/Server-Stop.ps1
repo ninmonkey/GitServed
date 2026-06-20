@@ -15,37 +15,28 @@
     #>
     [Alias('GitServe.Stop')]
     [CmdletBinding()]
-    param( )
+    param()
 
     [Net.HttpListener] $list = $Script:Listener
-    # 1] Stop ThreadJobs - force stop without waiting for output
-    # 2] Stop, Close, and null HttpListener
+    # Close HttpListener first so route jobs unblock from GetContextAsync().
+    if( $null -ne $List ) {
+        if( $List.IsListening ) {
+            "$( (Get-Date).ToString('u')) GitServe: Stopped listening" | Write-Host
+            $List.Stop()
+        }
+        $List.Close()
+        $Script:Listener = $null
+    }
+
     Get-Job -State Completed | ? Name -match 'GitServe.*' | Remove-Job
 
-    $threadJobs = Get-Job | Where-Object Name -Match 'GitServe.*'
+    $threadJobs = @( Get-Job | Where-Object Name -Match 'GitServe.*' )
     if( $threadJobs.Count -gt 0 ) {
         $threadJobs.Name
-            | Join-String -sep ', ' -SingleQuote -op 'GitServe Jobs: ' -os '. Stopping. Waiting for threads to stop...'
+            | Join-String -sep ', ' -SingleQuote -op 'GitServe Jobs: ' -os '. Stopping...'
             | Write-Warning
 
-        $threadJobs | Stop-Job -PassThru | Receive-Job -AutoRemoveJob -Wait
-
-        # Force stop immediately - suppress errors from closing runspace state
-        # $threadJobs | Stop-Job -Force -Confirm:$false -ErrorAction SilentlyContinue
-
-        # # Brief delay for OS cleanup
-        # Start-Sleep -Milliseconds 100
-
-        # # Force remove any remaining jobs without accessing their output
-        # Get-Job | Where-Object Name -Match 'GitServe.*' `
-        #     | Remove-Job -Force -Confirm:$false -ErrorAction SilentlyContinue
+        $threadJobs | Stop-Job -ErrorAction Continue
+        $threadJobs | Remove-Job -Force -ErrorAction Continue
     }
-
-    # I thought I'd want to exit jobs then close the listener? testing the inverse.
-    if( $List.IsListening ) {
-        "[w] $( (Get-Date).ToString('u')) GitServe: Stopped listening" | Write-Warning
-        $List.Close()
-        $list = $Null
-    }
-
 }
