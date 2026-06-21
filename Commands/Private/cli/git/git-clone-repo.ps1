@@ -1,27 +1,39 @@
 ﻿function InvokeCli.Git.CloneRepo { # or FromDictionaryEntry
     <#
     .SYNOPSIS
-        private invoke cloning git command
+        (internal) Invoke native git clone, and create folders based on the url: '/<root>/<owner>/<repo>'
     .DESCRIPTION
+        ClonedRepoRoot - '/cloned-repos' will clone to '/cloned-repos/owner/repository'
     .EXAMPLE
+        InvokeCli.Git.CloneRepo -CloneUrl 'https://github.com/owner/repo.git'
+    .EXAMPLE
+        # change root and print debug info
+        InvokeCli.Git.CloneRepo -CloneUrl 'https://github.com/owner/repo.git' -Path '/cloned-repos' -PSHost -Verbose
     .LINK
         GitServe\Invoke-GitClone
+    .LINK
+        GitServe\GitServe.Clone
     #>
-    # [CmdletBinding()]
-    # [Alias('_Cli.Git.Clone')]
+    [CmdletBinding()]
     param(
+        [Alias('Url')]
         [Parameter(Mandatory)]
         [string] $CloneUrl,
 
-        # CWD to clone from
-        [Alias('GitCwd')]
-        [string] $FromPath = '.',
+        # root directory to clone under. '/cloned-repos' would clone to '/cloned-repos/owner/repository'
+        [Alias('Path', 'PSPath')]
+        [string] $ClonedRepoRoot,
 
+        # Write to host
         [Alias('VerboseOutput')]
         [switch] $PSHost
     )
 
-    $CdStackName    = 'cli.git-clone'
+    $OriginalPath = Get-Item '.'
+    if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
+        $ClonedRepoRoot = GetConfig.ClonedRepoRoot | Get-Item -ea 'stop'
+        'Path: {0}' -f ( $ClonedRepoRoot ) | Write-Verbose
+    }
 
     $uriPrefix, $OwnerName, $RepoName = $CloneUrl -split '/', -3
     $RepoName = $RepoName -replace '\.git$'
@@ -33,16 +45,19 @@
         https://github.com, BurntSushi, ripgrep.git
     #>
 
-
-    [ordered]@{ OwnerName = $OwnerName; RepoName = $RepoName; UriPrefix = $UriPrefix ; CloneUrl = $CloneUrl }
+    [ordered]@{ OwnerName = $OwnerName; RepoName = $RepoName; UriPrefix = $UriPrefix ; CloneUrl = $CloneUrl; ClonedRepoRoot = $ClonedRepoRoot }
         | ConvertTo-Json -Compress -depth 2
         | Write-Verbose
 
     if( [String]::IsNullOrWhiteSpace( $OwnerName ) ) {
         throw "OwnerName from the CloneUrl is blank!"
     }
+    $OwnerRoot = Join-Path $ClonedRepoRoot $OwnerName
+    if( -not ( Test-Path $OwnerRoot ) ) {
+        $OwnerRoot = New-Item -ItemType Directory -Path $OwnerRoot -ea 'stop'
+    }
 
-    Push-Location -Stack $CdStackName $FromPath
+    Set-Location -Path $OwnerRoot -ea 'stop' # note(threading): May need to remove provider use for threading
 
     # Run real git with args:
     #region Invoke Real Git Args
@@ -50,24 +65,26 @@
     [Collections.Generic.List[object]] $gitArgs = @(
         'clone'
         $CloneUrl
+        # $OwnerRoot # if not using provider, declare path
     )
 
-    if( -not (Test-Path (Join-Path $FromPath $ownerName)) ) {
+        if( -not (Test-Path (Join-Path $OwnerRoot $OwnerName)) ) {
         $gitArgs
             | Join-String -sep ' ' -op 'Clone: invoke ''git'' => '
-            | Write-Host -fg 'gray60'
+            | Write-Verbose
 
         $results = & $binGit @gitArgs
         if( $PSHost ) {
-            $Results
+            $Results | Write-Host
         }
         # $results
     } else {
+        if( $PSHost ) {
         "Directory '${ownerName}' already exists. Skipping clone."
             | Write-Host -fg 'Green'
+        }
     }
 
-    Pop-Location -Stack $cdStackName # -ea Ignore
-
+    Set-Location -Path $OriginalPath
     #endregion Invoke Real Git Args
 }
