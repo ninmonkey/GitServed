@@ -67,7 +67,10 @@ function Start-ListenLoop {
             # If we've mapped a command
             if ($mappedCommand) {
                 # Run it, and capture all of the streams
-                $result = . $mappedCommand $request *>&1
+                $cmdParams = @{
+                    Request = $Request
+                }
+                $result = . $mappedCommand @cmdParams # *>&1
 
                 # The result can tell us it is a content type by giving itself a content type as a type name
                 $ContentTypePattern = '^(?>audio|application|font|image|message|model|text|video)/.+?'
