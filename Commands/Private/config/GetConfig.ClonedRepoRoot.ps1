@@ -7,7 +7,11 @@
     #>
     [OutputType( [System.IO.DirectoryInfo[]] )]
     [CmdletBinding()]
-    param()
+    param(
+        # Always return the first match. Default is to return all
+        [Alias('LimitOne')]
+        [switch] $FirstOnly
+    )
 
     $potential = @( 'H:/RootClonedRepos', '/cloned-repos' )
 
@@ -16,5 +20,8 @@
         | Where-Object { Test-Path $_ } | Get-Item -ea ignore
     )
 
+    if( $First ) {
+        return $rootPaths | Select-Object -First 1
+    }
     return $rootPaths
 }
