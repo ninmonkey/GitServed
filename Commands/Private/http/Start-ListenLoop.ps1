@@ -172,7 +172,8 @@ function Start-ListenLoop {
                     }
                     $response.Close($outputEncoding.GetBytes((ConvertTo-Json -InputObject $result)), $false)
                 }
-                Write-Host "Responded to $($request.Url) in $([DateTime]::Now - $event.TimeGenerated)" -ForegroundColor Cyan
+                $duration = [DateTime]::Now - $event.TimeGenerated
+                Write-Host "Responded to $($request.Url) in ${duration} - $( $duration.TotalMilliseconds.ToString('n0') + ' ms')" -ForegroundColor Cyan
                 if( $PSHost ) {
 
                     @(
