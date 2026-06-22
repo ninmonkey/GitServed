@@ -36,7 +36,7 @@
                 NewestCommitDate     = $newestCommitDateOnly
                 NewestCommitRelative = $newestCommitRelative
                 Owner                = $ownerPathName
-                OwnerName            = '{0}/{1}' -f @( $ownerPathName, $repoPath.BaseName )
+                OwnerRepoPair            = '{0}/{1}' -f @( $ownerPathName, $repoPath.BaseName )
                 Path                 = $repoPath.FullName
                 Remote               = $remote
                 # '( git remote get-url origin 2>$null | out-null ) ?? '<missing>''

@@ -1,4 +1,6 @@
-﻿# Ensure http outputs default to utf8
+﻿Import-Module ugit
+
+# Ensure http outputs default to utf8
 $OutputEncoding = (
     [Console]::OutputEncoding = [Console]::InputEncoding =
     [System.Text.UTF8Encoding]::new( <# bool: encoderShouldEmitUTF8Identifier #> $false )
