@@ -18,6 +18,58 @@ function Start-ListenLoop {
         return # test non-terminating
     }
 
+    function Set-CorsHeaders {
+        param(
+            [Parameter(Mandatory)] [Net.HttpListenerRequest] $Request,
+            [Parameter(Mandatory)] [Net.HttpListenerResponse] $Response,
+            [Parameter(Mandatory)] [hashtable] $State
+        )
+
+        [string[]] $allowOrigins = @($State.CorsAllowOrigin)
+        if (-not $allowOrigins -or $allowOrigins.Count -eq 0) {
+            $allowOrigins = @('*')
+        }
+
+        $origin = $Request.Headers['Origin']
+        $allowOriginHeader = $null
+
+        if ($allowOrigins -contains '*') {
+            if ($State.CorsAllowCredentials -and $origin) {
+                $allowOriginHeader = $origin
+            }
+            else {
+                $allowOriginHeader = '*'
+            }
+        }
+        elseif ($origin -and ($allowOrigins -contains $origin)) {
+            $allowOriginHeader = $origin
+        }
+
+        if ($allowOriginHeader) {
+            $Response.Headers['Access-Control-Allow-Origin'] = $allowOriginHeader
+        }
+
+        if ($origin -and $allowOriginHeader -and $allowOriginHeader -ne '*') {
+            $Response.Headers['Vary'] = 'Origin'
+        }
+
+        if ($State.CorsAllowCredentials -and $allowOriginHeader -and $allowOriginHeader -ne '*') {
+            $Response.Headers['Access-Control-Allow-Credentials'] = 'true'
+        }
+
+        if ($State.CorsAllowMethods) {
+            $Response.Headers['Access-Control-Allow-Methods'] = $State.CorsAllowMethods
+        }
+
+        $requestHeaders = $Request.Headers['Access-Control-Request-Headers']
+        if ($requestHeaders) {
+            $Response.Headers['Access-Control-Allow-Headers'] = $requestHeaders
+        }
+        elseif ($State.CorsAllowHeaders) {
+            $Response.Headers['Access-Control-Allow-Headers'] = $State.CorsAllowHeaders
+        }
+    }
+
     # While the listener is listening:
     while ($Listener.IsListening) {
         # Get every http* event
@@ -28,6 +80,15 @@ function Start-ListenLoop {
 
             # and if there is no output stream, continue
             if (-not $response.OutputStream) {
+                continue
+            }
+
+            Set-CorsHeaders -Request $request -Response $response -State $script:ModuleState
+
+            if ($request.HttpMethod -eq 'OPTIONS' -and $request.Headers['Origin']) {
+                $response.StatusCode = 204
+                $response.Close()
+                $event | Remove-Event
                 continue
             }
 

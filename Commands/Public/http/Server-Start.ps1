@@ -34,6 +34,22 @@
         [Parameter()]
         [int] $Port,
 
+        # set: State.CorsAllowOrigin
+        [Parameter()]
+        [string[]] $CorsAllowOrigin = @('*'),
+
+        # set: State.CorsAllowMethods
+        [Parameter()]
+        [string] $CorsAllowMethods = 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD',
+
+        # set: State.CorsAllowHeaders
+        [Parameter()]
+        [string] $CorsAllowHeaders = 'Content-Type, Authorization, X-Requested-With',
+
+        # set: State.CorsAllowCredentials
+        [Parameter()]
+        [switch] $CorsAllowCredentials,
+
         # log request debug info to the console
         [Alias('DebugInfo')]
         [switch] $PSHost
@@ -51,6 +67,10 @@
     if( -not $Port ) { $Port = Get-Random -Minimum 3000 -Maximum 4000 }
     $state.HostName = $HostName
     $state.Port = $Port
+    $state.CorsAllowOrigin = @($CorsAllowOrigin)
+    $state.CorsAllowMethods = $CorsAllowMethods
+    $state.CorsAllowHeaders = $CorsAllowHeaders
+    $state.CorsAllowCredentials = [bool] $CorsAllowCredentials
     $prefix = 'http://{0}:{1}/' -f @(
         $state.HostName
         $state.Port

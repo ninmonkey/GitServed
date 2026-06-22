@@ -10,6 +10,15 @@ $script:ModuleState = [hashtable]::Synchronized(@{
     Port = $null
     JobName = $null
     Using_CleanupOnRemoveEvent = $true
+    CorsAllowOrigin = @('*')
+    CorsAllowMethods = 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD'
+    CorsAllowHeaders = 'Content-Type, Authorization, X-Requested-With'
+    CorsAllowCredentials = $false
 })
+
+
+# Core shared cache # nyi
+$script:ResponseCache = [hashtable]::Synchronized(@{})
+
 
 [Net.HttpListener] $script:Listener = [Net.HttpListener]::new()

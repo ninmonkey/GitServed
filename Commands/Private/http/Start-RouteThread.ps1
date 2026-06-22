@@ -2,6 +2,8 @@
     <#
     .SYNOPSIS
         (internal function) ThreadJOb[s] that map and run routes
+    .NOTES
+        The public entrypoint to call this is through 'Server-Start'
     #>
     param(
         [Parameter()] [Runspace] $Runspace, # can param binding to default cause threadsafe issues, ie: is evaluated once, or before other lifetimes?
