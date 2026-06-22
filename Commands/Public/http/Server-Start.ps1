@@ -75,7 +75,6 @@
         $state.HostName
         $state.Port
     )
-    $prefix | join-string -op 'Prefix: ' | Write-host -bg 'orange'
     if( $null -eq $curListener ) {
         throw "Listener was null!"
     }
@@ -107,13 +106,11 @@
     }
 
     Start-RouteThread @startRouteThreadSplat
+        | Write-Debug
 
     $startListenLoopSplat = @{
         Listener = $Script:Listener
         PSHost = $PSHost
     }
-
-    "before => startListenLoop" | Write-Host -fg 'yellow'
     Start-ListenLoop @startListenLoopSplat
-    "after  => startListenLoop" | Write-Host -fg 'yellow'
 }
