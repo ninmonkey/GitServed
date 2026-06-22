@@ -10,13 +10,12 @@
     [OutputType( 'GitServe.Route.Repo.List' )]
     param()
 
-    $cache = $Script:ResponseCache
-
     $cacheKey = '/repo/list'
-    if ( $cache.ContainsKey( $cacheKey ) ) {
-        return $cache[ $cacheKey ]
-    }
+    $records = Get-ResponseCache -Key $cacheKey
 
+    if ( $records ) {
+        return $records
+    }
 
     $searchRoot = @( GetConfig.ClonedRepoRoot )
     $findGitRepos = Get-ChildItem $searchRoot -Filter '.git' -Directory -Force -Recurse | ForEach-Object Parent
@@ -45,6 +44,6 @@
         }
     )
 
-    $cache[ $cacheKey ] = $records
+    Set-ResponseCache -Key $cacheKey -Value $records
     return $records
 }
