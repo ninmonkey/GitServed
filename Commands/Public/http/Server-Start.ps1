@@ -32,7 +32,11 @@
         [String] $HostName = '127.0.0.1',
 
         [Parameter()]
-        [int] $Port
+        [int] $Port,
+
+        # log request debug info to the console
+        [Alias('DebugInfo')]
+        [switch] $PSHost
     )
     if( $Script:Listener.IsListening ) {
         Stop-GitServe
@@ -86,6 +90,7 @@
 
     $startListenLoopSplat = @{
         Listener = $Script:Listener
+        PSHost = $PSHost
     }
 
     "before => startListenLoop" | Write-Host -fg 'yellow'

@@ -4,7 +4,11 @@ function Start-ListenLoop {
     param(
         [ValidateNotNull()]
         [Parameter(Mandatory)]
-        [Net.HttpListener] $Listener
+        [Net.HttpListener] $Listener,
+
+        # log request debug info to the console
+        [Alias('DebugInfo')]
+        [switch] $PSHost
     )
 
     if( $null -eq $Listener ) {
@@ -21,6 +25,7 @@ function Start-ListenLoop {
             [Management.Automation.PSEventArgs] $event = $event
             # Try to get the context, request, and response from the event
             $context, $request, $response = $event.SourceArgs
+
             # and if there is no output stream, continue
             if (-not $response.OutputStream) {
                 continue
@@ -150,6 +155,9 @@ function Start-ListenLoop {
                     $response.Close($outputEncoding.GetBytes((ConvertTo-Json -InputObject $result)), $false)
                 }
                 Write-Host "Responded to $($request.Url) in $([DateTime]::Now - $event.TimeGenerated)" -ForegroundColor Cyan
+                if( $PSHost ) {
+                    '    {0}' -f $request.Url | Write-Host -ForegroundColor Cyan
+                }
             }
             else {
                 $response.StatusCode = 404
