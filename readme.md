@@ -46,6 +46,11 @@ See: [readme.ProjectLayout.md](readme.ProjectLayout.md)
 
 ## Debugging the module
 
+To quickly rebuild and run a test server, run:
+```ps1
+.\Workspace.Run.ps1
+```
+
 An example that stops, rebuilds, and reloads module changes
 ```ps1
 . ./Scratch/debug_harness.ps1
