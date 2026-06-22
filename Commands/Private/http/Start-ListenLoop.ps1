@@ -1,5 +1,9 @@
 ﻿#region Watch for events
 function Start-ListenLoop {
+    <#
+    .synopsis
+        (internal) Main HttpListener loop ( Called by Start-GitServe )
+    #>
     [CmdletBinding()]
     param(
         [ValidateNotNull()]

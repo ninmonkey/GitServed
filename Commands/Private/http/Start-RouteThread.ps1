@@ -1,7 +1,7 @@
 ﻿function Start-RouteThread {
     <#
     .SYNOPSIS
-        (internal function) ThreadJOb[s] that map and run routes
+        (internal function) ThreadJOb[s] that map and run routes. ( Called by Start-GitServe )
     .NOTES
         The public entrypoint to call this is through 'Server-Start'
     #>
