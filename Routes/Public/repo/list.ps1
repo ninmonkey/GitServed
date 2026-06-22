@@ -1,13 +1,22 @@
 ﻿function /repo/list {
     <#
     .SYNOPSIS
-        Return user's cloned repos
+        Return user's cloned repos. Cached.
     .description
+
     .NOTES
-        Response is not explicitly cached
+        Caches response to module variable 'Script:ResponseCache'
     #>
     [OutputType( 'GitServe.Route.Repo.List' )]
     param()
+
+    $cache = $Script:ResponseCache
+
+    $cacheKey = '/repo/list'
+    if ( $cache.ContainsKey( $cacheKey ) ) {
+        return $cache[ $cacheKey ]
+    }
+
 
     $searchRoot = @( GetConfig.ClonedRepoRoot )
     $findGitRepos = Get-ChildItem $searchRoot -Filter '.git' -Directory -Force -Recurse | ForEach-Object Parent
@@ -35,5 +44,7 @@
             }
         }
     )
+
+    $cache[ $cacheKey ] = $records
     return $records
 }
