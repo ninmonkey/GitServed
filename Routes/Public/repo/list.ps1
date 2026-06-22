@@ -21,14 +21,15 @@
             $newestCommitDateOnly = ( & git -C $absolutePath log -n 1 --format=%cd --date=format:'%Y-%m-%d' )
             $ownerPathName = $repoPath.FullName | Split-path -Parent | split-path  -Leaf
 
-            [pscustomobject]@{
-                PSTypeName = 'GitServe.Route.Repo.List'
+            [pscustomobject][ordered]@{
+                PSTypeName           = 'GitServe.Route.Repo.List'
+                CommitCount          = $commitCount
                 Name                 = $repoPath.BaseName
-                Path                 = $repoPath.FullName
-                Owner                = $ownerPathName
                 NewestCommitDate     = $newestCommitDateOnly
                 NewestCommitRelative = $newestCommitRelative
-                CommitCount          = $commitCount
+                Owner                = $ownerPathName
+                OwnerName            = '{0}/{1}' -f @( $ownerPathName, $repoPath.BaseName )
+                Path                 = $repoPath.FullName
                 Remote               = $remote
                 # '( git remote get-url origin 2>$null | out-null ) ?? '<missing>''
             }
