@@ -26,6 +26,11 @@ function Start-ListenLoop {
             # Try to get the context, request, and response from the event
             $context, $request, $response = $event.SourceArgs
 
+            # enable static completions using types
+            [Net.HttpListenerContext] $context   = $context
+            [Net.HttpListenerRequest] $request   = $request
+            [Net.HttpListenerResponse] $response = $response
+
             # and if there is no output stream, continue
             if (-not $response.OutputStream) {
                 continue
@@ -103,7 +108,7 @@ function Start-ListenLoop {
                 }
                 elseif ($result -is [string]) {
                     # encode it using $OutputEncoding and close the response
-                    $response.Close( $outputEncoding.GetBytes( $result ), $false )
+                    $response.Close( $outputEncoding.GetBytes( $result ), $false ) # warning: assumes user set default non-ascii
                 }
                 # If the result was a byte[]
                 elseif ($result -is [byte[]]) {
@@ -165,7 +170,18 @@ function Start-ListenLoop {
                 }
                 Write-Host "Responded to $($request.Url) in $([DateTime]::Now - $event.TimeGenerated)" -ForegroundColor Cyan
                 if( $PSHost ) {
-                    '    {0}' -f $request.Url | Write-Host -ForegroundColor Cyan
+
+                    @(
+                        '    {0} {1} ' -f @(
+                            $request.HttpMethod
+                            $request.Url
+                        )
+                        '    Response: Status: {0}, ContentType: {1}' -f @(
+                            $response.StatusDescription
+                            $response.ContentType
+                        )
+                    )  | Write-Host -ForegroundColor Cyan
+
                 }
             }
             else {
