@@ -1,9 +1,11 @@
 <#
 .Description
-    Module built on: 2026-06-20 14:02:19Z
+    Module built on: 2026-06-26 16:07:42Z
 #>
 
 #region Module.Before.ps1
+
+Import-Module ugit
 
 # Ensure http outputs default to utf8
 $OutputEncoding = (
@@ -17,7 +19,16 @@ $script:ModuleState = [hashtable]::Synchronized(@{
     Port = $null
     JobName = $null
     Using_CleanupOnRemoveEvent = $true
+    CorsAllowOrigin = @('*')
+    CorsAllowMethods = 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD'
+    CorsAllowHeaders = 'Content-Type, Authorization, X-Requested-With'
+    CorsAllowCredentials = $false
 })
+
+
+# Core shared cache # nyi
+$script:ResponseCache = [hashtable]::Synchronized(@{})
+
 
 [Net.HttpListener] $script:Listener = [Net.HttpListener]::new()
 
@@ -26,6 +37,124 @@ $script:ModuleState = [hashtable]::Synchronized(@{
 
 
 #region Private Module Functions
+
+
+
+function InvokeCli.Git.Log { # or FromDictionaryEntry
+    <#
+    .SYNOPSIS
+        (internal) Invoke native git clone, and create folders based on the url: '/<root>/<owner>/<repo>'
+    .DESCRIPTION
+        ClonedRepoRoot - '/cloned-repos' will clone to '/cloned-repos/owner/repository'
+    .EXAMPLE
+        InvokeCli.Git.CloneRepo -CloneUrl 'https://github.com/owner/repo.git'
+    .EXAMPLE
+        # change root and print debug info
+        InvokeCli.Git.CloneRepo -CloneUrl 'https://github.com/owner/repo.git' -Path '/cloned-repos' -PSHost -Verbose
+    .LINK
+        GitServe\Invoke-GitClone
+    .LINK
+        GitServe\GitServe.Clone
+    #>
+    [CmdletBinding()]
+    param(
+        [Alias('Url')]
+        [Parameter(Mandatory)]
+        [string] $CloneUrl,
+
+        # root directory to clone under. '/cloned-repos' would clone to '/cloned-repos/owner/repository'
+        [Alias('Path', 'PSPath')]
+        [string] $ClonedRepoRoot,
+
+        # Write to host
+        [Alias('VerboseOutput')]
+        [switch] $PSHost
+    )
+
+    $OriginalPath = Get-Item '.'
+    if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
+        $ClonedRepoRoot = GetConfig.ClonedRepoRoot | Get-Item -ea 'stop'
+        'Path: {0}' -f ( $ClonedRepoRoot ) | Write-Verbose
+    }
+
+    $uriPrefix, $OwnerName, $RepoName = $CloneUrl -split '/', -3
+    $RepoName = $RepoName -replace '\.git$'
+
+    <#
+    example uri output values:
+        > $cloneUrl = 'https://github.com/BurntSushi/ripgrep.git'
+        > $uriPrefix, $OwnerName, $RepoName
+        https://github.com, BurntSushi, ripgrep.git
+    #>
+
+    [ordered]@{ OwnerName = $OwnerName; RepoName = $RepoName; UriPrefix = $UriPrefix ; CloneUrl = $CloneUrl; ClonedRepoRoot = $ClonedRepoRoot }
+        | ConvertTo-Json -Compress -depth 2
+        | Write-Verbose
+
+    if( [String]::IsNullOrWhiteSpace( $OwnerName ) ) {
+        throw "OwnerName from the CloneUrl is blank!"
+    }
+    $OwnerRoot = Join-Path $ClonedRepoRoot $OwnerName
+    if( -not ( Test-Path $OwnerRoot ) ) {
+        $OwnerRoot = New-Item -ItemType Directory -Path $OwnerRoot -ea 'stop'
+    }
+
+    Set-Location -Path $OwnerRoot -ea 'stop' # note(threading): May need to remove provider use for threading
+
+    # Run real git with args:
+    #region Invoke Real Git Args
+    $binGit = Get-Command -CommandType Application -Name 'git' -ea 'Stop' -TotalCount 1
+    [Collections.Generic.List[object]] $gitArgs = @(
+        'clone'
+        $CloneUrl
+        # $OwnerRoot # if not using provider, declare path
+    )
+
+        if( -not (Test-Path (Join-Path $OwnerRoot $OwnerName)) ) {
+        $gitArgs
+            | Join-String -sep ' ' -op 'Clone: invoke ''git'' => '
+            | Write-Verbose
+
+        $results = & $binGit @gitArgs
+        if( $PSHost ) {
+            $Results | Write-Host
+        }
+        # $results
+    } else {
+        if( $PSHost ) {
+        "Directory '${ownerName}' already exists. Skipping clone."
+            | Write-Host -fg 'Green'
+        }
+    }
+
+    Set-Location -Path $OriginalPath
+    #endregion Invoke Real Git Args
+}
+
+function Get-ResponseCache {
+    <#
+    .SYNOPSIS
+        (internal) Read shared response cache
+    #>
+    param(
+        # Missing keys will return null
+        [Alias('Name', 'Key' ) ]
+        [Parameter(Mandatory)]
+        [string] $KeyName,
+
+        # Only test, returns true if the key exists
+        [Alias('TestOnly')]
+        [bool] $HasKey
+    )
+    $cache = $Script:ResponseCache
+
+    $exists = $cache.ContainsKey( $KeyName )
+    if( $HasKey ) {
+        return $exists
+    }
+
+    return $cache[ $KeyName ]
+}
 
 function GetConfig.ClonedRepoRoot {
     <#
@@ -36,7 +165,11 @@ function GetConfig.ClonedRepoRoot {
     #>
     [OutputType( [System.IO.DirectoryInfo[]] )]
     [CmdletBinding()]
-    param()
+    param(
+        # Always return the first match. Default is to return all
+        [Alias('LimitOne')]
+        [switch] $FirstOnly
+    )
 
     $potential = @( 'H:/RootClonedRepos', '/cloned-repos' )
 
@@ -45,6 +178,9 @@ function GetConfig.ClonedRepoRoot {
         | Where-Object { Test-Path $_ } | Get-Item -ea ignore
     )
 
+    if( $First ) {
+        return $rootPaths | Select-Object -First 1
+    }
     return $rootPaths
 }
 
@@ -80,27 +216,39 @@ function GetConfig.Host {
 function InvokeCli.Git.CloneRepo { # or FromDictionaryEntry
     <#
     .SYNOPSIS
-        private invoke cloning git command
+        (internal) Invoke native git clone, and create folders based on the url: '/<root>/<owner>/<repo>'
     .DESCRIPTION
+        ClonedRepoRoot - '/cloned-repos' will clone to '/cloned-repos/owner/repository'
     .EXAMPLE
+        InvokeCli.Git.CloneRepo -CloneUrl 'https://github.com/owner/repo.git'
+    .EXAMPLE
+        # change root and print debug info
+        InvokeCli.Git.CloneRepo -CloneUrl 'https://github.com/owner/repo.git' -Path '/cloned-repos' -PSHost -Verbose
     .LINK
         GitServe\Invoke-GitClone
+    .LINK
+        GitServe\GitServe.Clone
     #>
-    # [CmdletBinding()]
-    # [Alias('_Cli.Git.Clone')]
+    [CmdletBinding()]
     param(
+        [Alias('Url')]
         [Parameter(Mandatory)]
         [string] $CloneUrl,
 
-        # CWD to clone from
-        [Alias('GitCwd')]
-        [string] $FromPath = '.',
+        # root directory to clone under. '/cloned-repos' would clone to '/cloned-repos/owner/repository'
+        [Alias('Path', 'PSPath')]
+        [string] $ClonedRepoRoot,
 
+        # Write to host
         [Alias('VerboseOutput')]
         [switch] $PSHost
     )
 
-    $CdStackName    = 'cli.git-clone'
+    $OriginalPath = Get-Item '.'
+    if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
+        $ClonedRepoRoot = GetConfig.ClonedRepoRoot | Get-Item -ea 'stop'
+        'Path: {0}' -f ( $ClonedRepoRoot ) | Write-Verbose
+    }
 
     $uriPrefix, $OwnerName, $RepoName = $CloneUrl -split '/', -3
     $RepoName = $RepoName -replace '\.git$'
@@ -112,16 +260,19 @@ function InvokeCli.Git.CloneRepo { # or FromDictionaryEntry
         https://github.com, BurntSushi, ripgrep.git
     #>
 
-
-    [ordered]@{ OwnerName = $OwnerName; RepoName = $RepoName; UriPrefix = $UriPrefix ; CloneUrl = $CloneUrl }
+    [ordered]@{ OwnerName = $OwnerName; RepoName = $RepoName; UriPrefix = $UriPrefix ; CloneUrl = $CloneUrl; ClonedRepoRoot = $ClonedRepoRoot }
         | ConvertTo-Json -Compress -depth 2
         | Write-Verbose
 
     if( [String]::IsNullOrWhiteSpace( $OwnerName ) ) {
         throw "OwnerName from the CloneUrl is blank!"
     }
+    $OwnerRoot = Join-Path $ClonedRepoRoot $OwnerName
+    if( -not ( Test-Path $OwnerRoot ) ) {
+        $OwnerRoot = New-Item -ItemType Directory -Path $OwnerRoot -ea 'stop'
+    }
 
-    Push-Location -Stack $CdStackName $FromPath
+    Set-Location -Path $OwnerRoot -ea 'stop' # note(threading): May need to remove provider use for threading
 
     # Run real git with args:
     #region Invoke Real Git Args
@@ -129,25 +280,27 @@ function InvokeCli.Git.CloneRepo { # or FromDictionaryEntry
     [Collections.Generic.List[object]] $gitArgs = @(
         'clone'
         $CloneUrl
+        # $OwnerRoot # if not using provider, declare path
     )
 
-    if( -not (Test-Path (Join-Path $FromPath $ownerName)) ) {
+        if( -not (Test-Path (Join-Path $OwnerRoot $OwnerName)) ) {
         $gitArgs
             | Join-String -sep ' ' -op 'Clone: invoke ''git'' => '
-            | Write-Host -fg 'gray60'
+            | Write-Verbose
 
         $results = & $binGit @gitArgs
         if( $PSHost ) {
-            $Results
+            $Results | Write-Host
         }
         # $results
     } else {
+        if( $PSHost ) {
         "Directory '${ownerName}' already exists. Skipping clone."
             | Write-Host -fg 'Green'
+        }
     }
 
-    Pop-Location -Stack $cdStackName # -ea Ignore
-
+    Set-Location -Path $OriginalPath
     #endregion Invoke Real Git Args
 }
 
@@ -189,24 +342,97 @@ ${HtmlContent}
     $template -join [Environment]::NewLine
 }
 
-function / {
-    # This demo will be a lot of randomly generated content, so we'll set a random refresh rate
-    # variable context is shared between functions, so other animations can know the ideal timeframe to use.
+function Set-CorsHeader {
+    <#
+    .SYNOPSIS
+        (internal) Set CORS headers
+    #>
+    param(
+        [Parameter(Mandatory)] [Net.HttpListenerRequest] $Request,
+        [Parameter(Mandatory)] [Net.HttpListenerResponse] $Response,
+        [Parameter(Mandatory)] [hashtable] $State
+    )
 
-    # The refresh interval is the only dynamic part of this page.
-    # $Html = '<h1>Docker</h1><p>Now: {0}</p>' -f (  Get-Date )
+    [string[]] $allowOrigins = @($State.CorsAllowOrigin)
+    if (-not $allowOrigins -or $allowOrigins.Count -eq 0) {
+        $allowOrigins = @('*')
+    }
 
-    [string] $Html = "<h1 style='text-align:center'> Responded in $( ([DateTime]::Now - $event.TimeGenerated) )</h1>"
-    New-HtmlTemplate -Title 'Index' -HtmlContent $Html
+    $origin = $Request.Headers['Origin']
+    $allowOriginHeader = $null
+
+    if ($allowOrigins -contains '*') {
+        if ($State.CorsAllowCredentials -and $origin) {
+            $allowOriginHeader = $origin
+        }
+        else {
+            $allowOriginHeader = '*'
+        }
+    }
+    elseif ($origin -and ($allowOrigins -contains $origin)) {
+        $allowOriginHeader = $origin
+    }
+
+    if ($allowOriginHeader) {
+        $Response.Headers['Access-Control-Allow-Origin'] = $allowOriginHeader
+    }
+
+    if ($origin -and $allowOriginHeader -and $allowOriginHeader -ne '*') {
+        $Response.Headers['Vary'] = 'Origin'
+    }
+
+    if ($State.CorsAllowCredentials -and $allowOriginHeader -and $allowOriginHeader -ne '*') {
+        $Response.Headers['Access-Control-Allow-Credentials'] = 'true'
+    }
+
+    if ($State.CorsAllowMethods) {
+        $Response.Headers['Access-Control-Allow-Methods'] = $State.CorsAllowMethods
+    }
+
+    $requestHeaders = $Request.Headers['Access-Control-Request-Headers']
+    if ($requestHeaders) {
+        $Response.Headers['Access-Control-Allow-Headers'] = $requestHeaders
+    }
+    elseif ($State.CorsAllowHeaders) {
+        $Response.Headers['Access-Control-Allow-Headers'] = $State.CorsAllowHeaders
+    }
+}
+
+function Set-ResponseCache {
+    <#
+    .SYNOPSIS
+        (internal) Writes to shared response cache
+    .NOTES
+        Currently it allows  you to set the value to null
+    #>
+    param(
+        [Alias('Name') ]
+        [Parameter(Mandatory)]
+        [string] $KeyName,
+
+        # Only test, returns true if the key exists
+        [Alias('Object')]
+        $Value
+    )
+    $cache = $Script:ResponseCache
+    $cache[ $keyName ] = $Value
 }
 
 #region Watch for events
 function Start-ListenLoop {
+    <#
+    .synopsis
+        (internal) Main HttpListener loop ( Called by Start-GitServe )
+    #>
     [CmdletBinding()]
     param(
         [ValidateNotNull()]
         [Parameter(Mandatory)]
-        [Net.HttpListener] $Listener
+        [Net.HttpListener] $Listener,
+
+        # log request debug info to the console
+        [Alias('DebugInfo')]
+        [switch] $PSHost
     )
 
     if( $null -eq $Listener ) {
@@ -223,8 +449,23 @@ function Start-ListenLoop {
             [Management.Automation.PSEventArgs] $event = $event
             # Try to get the context, request, and response from the event
             $context, $request, $response = $event.SourceArgs
+
+            # enable static completions using types
+            [Net.HttpListenerContext] $context   = $context
+            [Net.HttpListenerRequest] $request   = $request
+            [Net.HttpListenerResponse] $response = $response
+
             # and if there is no output stream, continue
             if (-not $response.OutputStream) {
+                continue
+            }
+
+            Set-CorsHeader -Request $request -Response $response -State $script:ModuleState
+
+            if ($request.HttpMethod -eq 'OPTIONS' -and $request.Headers['Origin']) {
+                $response.StatusCode = 204
+                $response.Close()
+                $event | Remove-Event
                 continue
             }
 
@@ -269,7 +510,10 @@ function Start-ListenLoop {
             # If we've mapped a command
             if ($mappedCommand) {
                 # Run it, and capture all of the streams
-                $result = . $mappedCommand $request *>&1
+                $cmdParams = @{
+                    Request = $Request
+                }
+                $result = . $mappedCommand @cmdParams # *>&1
 
                 # The result can tell us it is a content type by giving itself a content type as a type name
                 $ContentTypePattern = '^(?>audio|application|font|image|message|model|text|video)/.+?'
@@ -288,7 +532,7 @@ function Start-ListenLoop {
                 }
                 elseif ($result -is [string]) {
                     # encode it using $OutputEncoding and close the response
-                    $response.Close( $outputEncoding.GetBytes( $result ), $false )
+                    $response.Close( $outputEncoding.GetBytes( $result ), $false ) # warning: assumes user set default non-ascii
                 }
                 # If the result was a byte[]
                 elseif ($result -is [byte[]]) {
@@ -348,7 +592,22 @@ function Start-ListenLoop {
                     }
                     $response.Close($outputEncoding.GetBytes((ConvertTo-Json -InputObject $result)), $false)
                 }
-                Write-Host "Responded to $($request.Url) in $([DateTime]::Now - $event.TimeGenerated)" -ForegroundColor Cyan
+                $duration = [DateTime]::Now - $event.TimeGenerated
+                Write-Host "Responded to $($request.Url) in ${duration} - $( $duration.TotalMilliseconds.ToString('n0') + ' ms')" -ForegroundColor Cyan
+                if( $PSHost ) {
+
+                    @(
+                        '    {0} {1} ' -f @(
+                            $request.HttpMethod
+                            $request.Url
+                        )
+                        '    Response: Status: {0}, ContentType: {1}' -f @(
+                            $response.StatusDescription
+                            $response.ContentType
+                        )
+                    )  | Write-Host -ForegroundColor Cyan
+
+                }
             }
             else {
                 $response.StatusCode = 404
@@ -376,7 +635,9 @@ function Start-ListenLoop {
 function Start-RouteThread {
     <#
     .SYNOPSIS
-        (internal function) ThreadJOb[s] that map and run routes
+        (internal function) ThreadJOb[s] that map and run routes. ( Called by Start-GitServe )
+    .NOTES
+        The public entrypoint to call this is through 'Server-Start'
     #>
     param(
         [Parameter()] [Runspace] $Runspace, # can param binding to default cause threadsafe issues, ie: is evaluated once, or before other lifetimes?
@@ -483,6 +744,72 @@ function Start-RouteThread {
 
 
 #region Public Functions
+
+function Metric-GitServeCommitCount {
+    <#
+    .SYNOPSIS
+        Number of commits grouped and sorted by: "<Year>-<Month>_<GitUserName>" as text Descending
+    .NOTES
+        Expects input type: 'git.log'
+    .EXAMPLE
+        git log | Metric-CommitCount
+    .EXAMPLE
+        Use-Git -GitArg 'log', '-n', 4, '-C', $path | GitServe.Metric.CommitCount
+    #>
+    [Alias('GitServe.Metric.CommitCount')]
+    [OutputType(
+        '[System.Collections.Generic.SortedDictionary[string,object]]'
+    )]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
+        [DateTime] $CommitDate,
+
+        [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
+        [string] $GitUserName,
+
+        [Parameter(ValueFromPipelineByPropertyName)]
+        [string] $GitUserEmail,
+
+        # Input has 'ugit' properties like 'git.log'
+        [Parameter(ValueFromPipeline)]
+        [object] $InputObject
+    )
+    begin {
+        function __toKeyId {
+            # Generate a PrimaryKey. This determines distinct testing for records
+            param( $Obj )
+            '{0}_{1}' -f @(
+                $Obj.CommitDate.ToString('yyyy-MM')
+                $Obj.GitUserName
+            )
+        }
+        $reverseComparer = [System.Collections.Generic.Comparer[string]]::Create({
+            param($x, $y) [string]::Compare($y, $x)
+        })
+        [Collections.Generic.SortedDictionary[string,object]] $metric = $reverseComparer
+
+        #//@{}
+    }
+    process {
+        $key = __toKeyId $InputObject
+        if( -not $metric.ContainsKey( $key ) ) {
+            $initialValue = [pscustomobject]@{
+                PSTYpeName = 'GitServe.Metric.CommitCount'
+                CommitDate  = $CommitDate
+                GitUserName = $GitUserName
+                CommitCount = 1
+                GroupBy     = $key
+            }
+            $metric[ $key ] = $initialValue
+        } else {
+            $metric[ $key ].CommitCount += 1
+        }
+    }
+    end {
+        $metric
+    }
+}
 
 function Format-GitServeRelativePath {
     <#
@@ -605,7 +932,27 @@ function Start-GitServe {
         [String] $HostName = '127.0.0.1',
 
         [Parameter()]
-        [int] $Port
+        [int] $Port,
+
+        # set: State.CorsAllowOrigin
+        [Parameter()]
+        [string[]] $CorsAllowOrigin = @('*'),
+
+        # set: State.CorsAllowMethods
+        [Parameter()]
+        [string] $CorsAllowMethods = 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD',
+
+        # set: State.CorsAllowHeaders
+        [Parameter()]
+        [string] $CorsAllowHeaders = 'Content-Type, Authorization, X-Requested-With',
+
+        # set: State.CorsAllowCredentials
+        [Parameter()]
+        [switch] $CorsAllowCredentials,
+
+        # log request debug info to the console
+        [Alias('DebugInfo')]
+        [switch] $PSHost
     )
     if( $Script:Listener.IsListening ) {
         Stop-GitServe
@@ -620,11 +967,14 @@ function Start-GitServe {
     if( -not $Port ) { $Port = Get-Random -Minimum 3000 -Maximum 4000 }
     $state.HostName = $HostName
     $state.Port = $Port
+    $state.CorsAllowOrigin = @($CorsAllowOrigin)
+    $state.CorsAllowMethods = $CorsAllowMethods
+    $state.CorsAllowHeaders = $CorsAllowHeaders
+    $state.CorsAllowCredentials = [bool] $CorsAllowCredentials
     $prefix = 'http://{0}:{1}/' -f @(
         $state.HostName
         $state.Port
     )
-    $prefix | join-string -op 'Prefix: ' | Write-host -bg 'orange'
     if( $null -eq $curListener ) {
         throw "Listener was null!"
     }
@@ -656,14 +1006,13 @@ function Start-GitServe {
     }
 
     Start-RouteThread @startRouteThreadSplat
+        | Write-Debug
 
     $startListenLoopSplat = @{
         Listener = $Script:Listener
+        PSHost = $PSHost
     }
-
-    "before => startListenLoop" | Write-Host -fg 'yellow'
     Start-ListenLoop @startListenLoopSplat
-    "after  => startListenLoop" | Write-Host -fg 'yellow'
 }
 
 function Stop-GitServe {  # 'Stop-GitServeServer' sounded bad
@@ -683,51 +1032,190 @@ function Stop-GitServe {  # 'Stop-GitServeServer' sounded bad
     #>
     [Alias('GitServe.Stop')]
     [CmdletBinding()]
-    param( )
+    param()
 
     [Net.HttpListener] $list = $Script:Listener
-    # 1] Stop ThreadJobs - force stop without waiting for output
-    # 2] Stop, Close, and null HttpListener
+    # Close HttpListener first so route jobs unblock from GetContextAsync().
+    if( $null -ne $List ) {
+        if( $List.IsListening ) {
+            "$( (Get-Date).ToString('u')) GitServe: Stopped listening" | Write-Host
+            $List.Stop()
+        }
+        $List.Close()
+        $Script:Listener = $null
+    }
+
     Get-Job -State Completed | ? Name -match 'GitServe.*' | Remove-Job
 
-    $threadJobs = Get-Job | Where-Object Name -Match 'GitServe.*'
+    $threadJobs = @( Get-Job | Where-Object Name -Match 'GitServe.*' )
     if( $threadJobs.Count -gt 0 ) {
         $threadJobs.Name
-            | Join-String -sep ', ' -SingleQuote -op 'GitServe Jobs: ' -os '. Stopping. Waiting for threads to stop...'
+            | Join-String -sep ', ' -SingleQuote -op 'GitServe Jobs: ' -os '. Stopping...'
             | Write-Warning
 
-        $threadJobs | Stop-Job -PassThru | Receive-Job -AutoRemoveJob -Wait
+        $threadJobs | Stop-Job -ErrorAction Continue
+        $threadJobs | Remove-Job -Force -ErrorAction Continue
+    }
+}
 
-        # Force stop immediately - suppress errors from closing runspace state
-        # $threadJobs | Stop-Job -Force -Confirm:$false -ErrorAction SilentlyContinue
+function /cache/clear {
+    <#
+    .synopsis
+        Clear all caches
+    #>
+    [OutputType( 'GitServe.Route.Debug.ClearCache' )]
+    param()
 
-        # # Brief delay for OS cleanup
-        # Start-Sleep -Milliseconds 100
+    /cache/request/clear
+}
+function /cache/request/clear {
+    <#
+    .SYNOPSIS
+        Debug. Clears RequestCache
+    .description
+        Clears module variable 'Script:ResponseCache'
+    #>
+    [OutputType( 'GitServe.Route.Debug.ClearCache' )]
+    param()
 
-        # # Force remove any remaining jobs without accessing their output
-        # Get-Job | Where-Object Name -Match 'GitServe.*' `
-        #     | Remove-Job -Force -Confirm:$false -ErrorAction SilentlyContinue
+    $cache = $Script:ResponseCache
+    'Removing {0} keys' -f ( $cache.Keys.count ) | Write-Host -fore Cyan
+    $cache.clear()
+
+    [pscustomobject][ordered]@{
+        PSTypeName = 'GitServe.Route.Debug.ClearCache'
+        Message    = 'RequestCache cleared'
+        Now        = [Datetime]::Now
+    }
+}
+
+function /repo/clone {
+    <#
+    .SYNOPSIS
+        Clone a repository to the docker volume
+    .Description
+    .EXAMPLE
+        irm 'http://127.0.0.1:3001/repo/Clone?url=https://github.com/BurntSushi/ripgrep.git'
+    .NOTES
+        Response is not explicitly cached
+    #>
+    [OutputType( 'GitServe.Route.Repo.Clone' )]
+    param(
+        [Net.HttpListenerRequest] $Request
+    )
+
+    $Request | ConvertTo-Json -depth 1 -wa ignore | Write-Debug
+
+    $parsedQuery = [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
+    [string] $gitUrl = @( $parsedQuery.GetValues('url') )[0]
+
+    InvokeCli.Git.CloneRepo -Url $gitUrl -path (GetConfig.ClonedRepoRoot -First)
+        | Write-Debug
+
+    [pscustomobject]@{
+        PSTypeName         = 'GitServe.Route.Repo.Clone'
+        Query              = $request.Url.PathAndQuery
+        CloneUrl           = $gitUrl
+        # DebugRequest       = $Request
     }
 
-    # I thought I'd want to exit jobs then close the listener? testing the inverse.
-    if( $List.IsListening ) {
-        "[w] $( (Get-Date).ToString('u')) GitServe: Stopped listening" | Write-Warning
-        $List.Close()
-        $list = $Null
+}
+
+function /repo/metric/commit {
+    <#
+    .SYNOPSIS
+        Number of commits grouped and sorted by: "<Year>-<Month>_<GitUserName>" as text Descending
+    .DESCRIPTION
+    .EXAMPLE
+        irm 'http://127.0.0.1:3001/repo/metric/commit?repo=BurntSushi/ripgrep'
+        irm 'http://127.0.0.1:3001/repo/metric/commit?url=microsoft/vscode-tmdl'
+    .EXAMPLE
+    .LINK
+        GitServe\Metric-GitServeCommitCount
+    #>
+    [OutputType( 'GitServe.Route.Repo.Metric.Commit' )]
+    [Alias('GitServe.Get-Log')]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [Net.HttpListenerRequest] $Request
+    )
+    $endpointLabel = '/repo/metric/commit'
+    $parsedQuery = [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
+    [string] $OwnerRepoPair = @( $parsedQuery.GetValues('url') )
+
+    if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
+        $ClonedRepoRoot = GetConfig.ClonedRepoRoot | Get-Item -ea 'stop'
+        'RootPath: {0}' -f ( $ClonedRepoRoot ) | Write-Verbose
+    }
+    $RepoPath = Join-Path $ClonedRepoRoot $OwnerRepoPair # todo(sanitization): use a better escape and match method
+    if( ! ( Test-Path $RepoPath )) {
+        "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'" | Write-Host -fore red
+        throw "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'"
     }
 
+    #region Invoke Git Args
+    # $binGit = Get-Command -CommandType Application -Name 'git' -ea 'Stop' -TotalCount 1
+    [Collections.Generic.List[object]] $gitArgs = @(
+        'log'
+        # '-n'
+        # '100'
+        '-C'
+        $RepoPath
+        # $OwnerRoot # if not using provider, declare path
+    )
+
+    $gitArgs
+        | Join-String -sep ' ' -op 'Clone: invoke ''git'' => '
+        | Write-Verbose
+
+    try {
+        $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
+        # [object[]]
+        $results = Use-git -GitArg $gitArgs
+            | GitServe.Metric.CommitCount
+            # | Select-Object -Property $SelectProperty
+    } catch {
+        "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
+            | Write-Host
+        "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
+            | Write-Error
+    }
+    finally { }
+
+    return $results
+    #endregion Invoke Git Args
+}
+
+function / {
+    # This demo will be a lot of randomly generated content, so we'll set a random refresh rate
+    # variable context is shared between functions, so other animations can know the ideal timeframe to use.
+
+    # The refresh interval is the only dynamic part of this page.
+    # $Html = '<h1>Docker</h1><p>Now: {0}</p>' -f (  Get-Date )
+
+    [string] $Html = "<h1 style='text-align:center'> Responded in $( ([DateTime]::Now - $event.TimeGenerated) )</h1>"
+    New-HtmlTemplate -Title 'Index' -HtmlContent $Html
 }
 
 function /repo/list {
     <#
     .SYNOPSIS
-        Return user's cloned repos
+        Return user's cloned repos. Cached.
     .description
+
     .NOTES
-        Response is not explicitly cached
+        Caches response to module variable 'Script:ResponseCache'
     #>
     [OutputType( 'GitServe.Route.Repo.List' )]
     param()
+
+    $cacheKey = '/repo/list'
+    $records = Get-ResponseCache -Key $cacheKey
+
+    if ( $records ) {
+        return $records
+    }
 
     $searchRoot = @( GetConfig.ClonedRepoRoot )
     $findGitRepos = Get-ChildItem $searchRoot -Filter '.git' -Directory -Force -Recurse | ForEach-Object Parent
@@ -741,20 +1229,122 @@ function /repo/list {
             $newestCommitDateOnly = ( & git -C $absolutePath log -n 1 --format=%cd --date=format:'%Y-%m-%d' )
             $ownerPathName = $repoPath.FullName | Split-path -Parent | split-path  -Leaf
 
-            [pscustomobject]@{
-                PSTypeName = 'GitServe.Route.Repo.List'
+            [pscustomobject][ordered]@{
+                PSTypeName           = 'GitServe.Route.Repo.List'
+                CommitCount          = $commitCount
                 Name                 = $repoPath.BaseName
-                Path                 = $repoPath.FullName
-                Owner                = $ownerPathName
                 NewestCommitDate     = $newestCommitDateOnly
                 NewestCommitRelative = $newestCommitRelative
-                CommitCount          = $commitCount
+                Owner                = $ownerPathName
+                OwnerRepoPair            = '{0}/{1}' -f @( $ownerPathName, $repoPath.BaseName )
+                Path                 = $repoPath.FullName
                 Remote               = $remote
                 # '( git remote get-url origin 2>$null | out-null ) ?? '<missing>''
             }
         }
     )
+
+    Set-ResponseCache -Key $cacheKey -Value $records
     return $records
+}
+
+function /repo/log {
+    <#
+    .SYNOPSIS
+        Return git logs based on repo OwnerRepoPair '/<owner>/<repo>'
+    .DESCRIPTION
+    .EXAMPLE
+        irm 'http://127.0.0.1:3001/repo/log?repo=BurntSushi/ripgrep'
+    .EXAMPLE
+
+    .EXAMPLE
+    .LINK
+        GitServe\Invoke-GitClone
+    .LINK
+        GitServe\GitServe.Clone
+    #>
+
+    [OutputType( 'GitServe.Route.Repo.Log' )]
+    [Alias('GitServe.Get-Log')]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [Net.HttpListenerRequest] $Request
+
+        # [Alias('Name', 'RepoName')]
+        # [Parameter(Mandatory)]
+        # [string] $OwnerRepoPair
+    )
+    $parsedQuery = [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
+    [string] $OwnerRepoPair = @( $parsedQuery.GetValues('url') )
+    $UsingUGit = $true
+
+    if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
+        $ClonedRepoRoot = GetConfig.ClonedRepoRoot | Get-Item -ea 'stop'
+        'RootPath: {0}' -f ( $ClonedRepoRoot ) | Write-Verbose
+    }
+    $RepoPath = Join-Path $ClonedRepoRoot $OwnerRepoPair # todo(sanitization): use a better escape and match method
+    if( ! ( Test-Path $RepoPath )) {
+        "/repo/log Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'" | Write-Host -fore red
+        throw "/repo/log Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'"
+    }
+    # Run real git with args:
+    #region Invoke Real Git Args
+    $binGit = Get-Command -CommandType Application -Name 'git' -ea 'Stop' -TotalCount 1
+    [Collections.Generic.List[object]] $gitArgs = @(
+        '-C'
+        $RepoPath
+        'log'
+        '-n'
+        '100'
+        # $OwnerRoot # if not using provider, declare path
+    )
+
+    $gitArgs
+        | Join-String -sep ' ' -op 'Clone: invoke ''git'' => '
+        | Write-Verbose
+
+    if( $UsingUGit ) { #  use regular git or ugit
+        # note: this is because ugit doesn't support '-C' flag (edit: does if last)
+        try {
+            Push-Location $RepoPath -ea 'stop' -StackName 'GitServe.Get-Log'
+            $gitArgs =  @( 'log', '-n', '100' )
+            $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
+
+
+            $results = & 'Ugit\git' @gitArgs
+                | Select-Object -Property $SelectProperty
+        } catch {
+            "/repo/log Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
+                | Write-Host
+            "/repo/log Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
+                | Write-Error
+        }
+        finally {
+            Pop-Location -ea 'ignore' -StackName 'GitServe.Get-Log'
+        }
+        return $results
+    }
+
+    # regular git
+    $results = & $binGit @gitArgs
+
+    <#
+    $parsedQuery = [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
+    [string] $gitUrl = @( $parsedQuery.GetValues('url') )[0]
+
+    InvokeCli.Git.CloneRepo -Url $gitUrl -path (GetConfig.ClonedRepoRoot -First)
+        | Write-Debug
+
+    [pscustomobject]@{
+        PSTypeName         = 'GitServe.Route.Repo.Clone'
+        Query              = $request.Url.PathAndQuery
+        CloneUrl           = $gitUrl
+        # DebugRequest       = $Request
+    }
+    #>
+    $results
+    #endregion Invoke Real Git Args
 }
 
 
