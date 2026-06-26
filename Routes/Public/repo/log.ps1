@@ -55,7 +55,7 @@
         | Write-Verbose
 
     if( $UsingUGit ) { #  use regular git or ugit
-        # note: this is because ugit doesn't support '-C' flag
+        # note: this is because ugit doesn't support '-C' flag (edit: does if last)
         try {
             Push-Location $RepoPath -ea 'stop' -StackName 'GitServe.Get-Log'
             $gitArgs =  @( 'log', '-n', '100' )
