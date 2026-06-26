@@ -50,6 +50,7 @@
     RequiredModules   = @(
         # only mandatory dependencies
         'pansies'
+        'ugit'
         'ClassExplorer'
     )
 
