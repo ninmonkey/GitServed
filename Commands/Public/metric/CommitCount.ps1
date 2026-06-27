@@ -60,6 +60,6 @@
         }
     }
     end {
-        $metric
+        ,@( $metric.Values )
     }
 }
