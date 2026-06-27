@@ -77,6 +77,13 @@ function Start-ListenLoop {
                 # (this will work for a single server, for multitenant hosting, you'd need to include the host)
             )
 
+            if( $PSHost ) {
+                '{0} {1} ' -f @(
+                    $request.HttpMethod
+                    $request.Url
+                ) | Write-Host -ForegroundColor 'gray60'
+            }
+
             # Now we'll loop through the possible route names
             foreach ($possibleRouteName in $possibleRouteNames ) {
                 # and see if a command exists for that route
@@ -173,9 +180,12 @@ function Start-ListenLoop {
                     $response.Close($outputEncoding.GetBytes((ConvertTo-Json -InputObject $result)), $false)
                 }
                 $duration = [DateTime]::Now - $event.TimeGenerated
-                Write-Host "Responded to $($request.Url) in ${duration} - $( $duration.TotalMilliseconds.ToString('n0') + ' ms')" -ForegroundColor Cyan
-                if( $PSHost ) {
 
+                $elapsedText  = $duration.TotalMilliseconds.ToString('n0') + ' ms'
+                $elapsedColor = ( $duration.TotalMilliseconds -gt 500 ) ? "${fg:red}" : ''
+
+                Write-Host "Responded to $($request.Url) in ${duration} - ${elapsedColor}${elapsedText}" -ForegroundColor Cyan
+                if( $PSHost ) {
                     @(
                         '    {0} {1} ' -f @(
                             $request.HttpMethod
