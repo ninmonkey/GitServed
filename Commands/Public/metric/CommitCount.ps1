@@ -47,12 +47,15 @@
     process {
         $key = __toKeyId $InputObject
         if( -not $metric.ContainsKey( $key ) ) {
-            $initialValue = [pscustomobject]@{
-                PSTYpeName = 'GitServe.Metric.CommitCount'
-                CommitDate  = $CommitDate
+            $initialValue = [pscustomobject][ordered]@{
+                PSTYpeName  = 'GitServe.Metric.CommitCount'
+                DateString  = $CommitDate.ToString('yyyy-MM')
                 GitUserName = $GitUserName
                 CommitCount = 1
-                GroupBy     = $key
+                Year        = $CommitDate.Year
+                Month       = $CommitDate.Month
+                KeyId       = $key
+                CommitDate  = $CommitDate
             }
             $metric[ $key ] = $initialValue
         } else {

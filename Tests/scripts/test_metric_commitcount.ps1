@@ -2,7 +2,10 @@
 .SYNOPSIS
     Tests command: Metric.CommitCount
 .EXAMPLE
+    git log | Metric-GitServeCommitCount
+.EXAMPLE
     ./test_metric_commitcount.ps1
+
 #>
 param(
     [string] $RepoPath = 'H:/RootClonedRepos/burntsushi/ripgrep'
