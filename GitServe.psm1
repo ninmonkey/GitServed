@@ -1,6 +1,6 @@
 <#
 .Description
-    Module built on: 2026-06-26 16:07:42Z
+    Module built on: 2026-06-28 13:27:32Z
 #>
 
 #region Module.Before.ps1
@@ -497,6 +497,13 @@ function Start-ListenLoop {
                 # (this will work for a single server, for multitenant hosting, you'd need to include the host)
             )
 
+            if( $PSHost ) {
+                '{0} {1} ' -f @(
+                    $request.HttpMethod
+                    $request.Url
+                ) | Write-Host -ForegroundColor 'gray60'
+            }
+
             # Now we'll loop through the possible route names
             foreach ($possibleRouteName in $possibleRouteNames ) {
                 # and see if a command exists for that route
@@ -509,11 +516,36 @@ function Start-ListenLoop {
 
             # If we've mapped a command
             if ($mappedCommand) {
+                if( $PSHost ) {
+                    'Mapped to {0}' -f $mappedCommand | Write-Host -ForegroundColor 'gray60'
+                }
                 # Run it, and capture all of the streams
                 $cmdParams = @{
                     Request = $Request
                 }
-                $result = . $mappedCommand @cmdParams # *>&1
+
+                [string] $requestCacheKey = $Request.Url.PathAndQuery
+                $result = Get-ResponseCache -Key $requestCacheKey
+
+                [string[]] $NeverCacheRouteNames = @(
+                    '/cache/list', '/cache/request/clear', '/cache/clear'
+                )
+
+                $neverCacheResponse = $requestCacheKey -in $NeverCacheRouteNames
+                if( $null -eq $result -or $neverCacheResponse ) {
+                    if( $PSHost ) {
+                        '    Cache key is stale: "{0}" ( neverCache: {1} )' -f @(
+                            $requestCacheKey
+                            $neverCacheResponse
+                        ) | Write-Host -fg 'yellow'
+                    }
+                    # Cache is stale, so invoke the Url Route
+                    $result = . $mappedCommand @cmdParams # *>&1
+
+                    if( -not $neverCacheResponse ) {
+                        Set-ResponseCache -Key $requestCacheKey -Value $result
+                    }
+                }
 
                 # The result can tell us it is a content type by giving itself a content type as a type name
                 $ContentTypePattern = '^(?>audio|application|font|image|message|model|text|video)/.+?'
@@ -593,9 +625,12 @@ function Start-ListenLoop {
                     $response.Close($outputEncoding.GetBytes((ConvertTo-Json -InputObject $result)), $false)
                 }
                 $duration = [DateTime]::Now - $event.TimeGenerated
-                Write-Host "Responded to $($request.Url) in ${duration} - $( $duration.TotalMilliseconds.ToString('n0') + ' ms')" -ForegroundColor Cyan
-                if( $PSHost ) {
 
+                $elapsedText  = $duration.TotalMilliseconds.ToString('n0') + ' ms'
+                $elapsedColor = ( $duration.TotalMilliseconds -gt 500 ) ? "${fg:red}" : ''
+
+                Write-Host "Responded to $($request.Url) in ${duration} - ${elapsedColor}${elapsedText}" -ForegroundColor Cyan
+                if( $PSHost ) {
                     @(
                         '    {0} {1} ' -f @(
                             $request.HttpMethod
@@ -794,12 +829,15 @@ function Metric-GitServeCommitCount {
     process {
         $key = __toKeyId $InputObject
         if( -not $metric.ContainsKey( $key ) ) {
-            $initialValue = [pscustomobject]@{
-                PSTYpeName = 'GitServe.Metric.CommitCount'
-                CommitDate  = $CommitDate
+            $initialValue = [pscustomobject][ordered]@{
+                PSTYpeName  = 'GitServe.Metric.CommitCount'
+                DateString  = $CommitDate.ToString('yyyy-MM')
                 GitUserName = $GitUserName
                 CommitCount = 1
-                GroupBy     = $key
+                Year        = $CommitDate.Year
+                Month       = $CommitDate.Month
+                KeyId       = $key
+                CommitDate  = $CommitDate
             }
             $metric[ $key ] = $initialValue
         } else {
@@ -807,7 +845,7 @@ function Metric-GitServeCommitCount {
         }
     }
     end {
-        $metric
+        ,@( $metric.Values )
     }
 }
 
@@ -1198,6 +1236,25 @@ function / {
     New-HtmlTemplate -Title 'Index' -HtmlContent $Html
 }
 
+function /cache/list {
+    <#
+    .SYNOPSIS
+        Debug. Displays metadata on cached responses
+    .description
+        Basic info on the state of '$Script:ResponseCache'
+    #>
+    [OutputType( 'GitServe.Route.Cache.List' )]
+    param()
+    $cache = $Script:ResponseCache
+    ,@( $cache.GetEnumerator() | %{
+        [pscustomobject][ordered]@{
+            PSTypeName = 'GitServe.Route.Cache.List'
+            Key        = $_.Key
+            ValueType  = $_.Value | % GetType | % Name | Sort-Object -unique | Join-String -sep ', '
+        }
+    })
+}
+
 function /repo/list {
     <#
     .SYNOPSIS
@@ -1211,11 +1268,6 @@ function /repo/list {
     param()
 
     $cacheKey = '/repo/list'
-    $records = Get-ResponseCache -Key $cacheKey
-
-    if ( $records ) {
-        return $records
-    }
 
     $searchRoot = @( GetConfig.ClonedRepoRoot )
     $findGitRepos = Get-ChildItem $searchRoot -Filter '.git' -Directory -Force -Recurse | ForEach-Object Parent
@@ -1243,8 +1295,6 @@ function /repo/list {
             }
         }
     )
-
-    Set-ResponseCache -Key $cacheKey -Value $records
     return $records
 }
 
