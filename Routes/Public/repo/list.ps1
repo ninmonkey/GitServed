@@ -11,11 +11,6 @@
     param()
 
     $cacheKey = '/repo/list'
-    $records = Get-ResponseCache -Key $cacheKey
-
-    if ( $records ) {
-        return $records
-    }
 
     $searchRoot = @( GetConfig.ClonedRepoRoot )
     $findGitRepos = Get-ChildItem $searchRoot -Filter '.git' -Directory -Force -Recurse | ForEach-Object Parent
@@ -43,7 +38,5 @@
             }
         }
     )
-
-    Set-ResponseCache -Key $cacheKey -Value $records
     return $records
 }

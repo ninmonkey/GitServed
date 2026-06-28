@@ -114,10 +114,10 @@ function Start-ListenLoop {
                 $neverCacheResponse = $requestCacheKey -in $NeverCacheRouteNames
                 if( $null -eq $result -or $neverCacheResponse ) {
                     if( $PSHost ) {
-                        'Cache key is stale: "{0}" ( neverCache: {1} )' -f @(
+                        '    Cache key is stale: "{0}" ( neverCache: {1} )' -f @(
                             $requestCacheKey
                             $neverCacheResponse
-                        ) | Write-Host -fg 'gray80'
+                        ) | Write-Host -fg 'yellow'
                     }
                     # Cache is stale, so invoke the Url Route
                     $result = . $mappedCommand @cmdParams # *>&1
