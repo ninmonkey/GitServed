@@ -96,11 +96,31 @@ function Start-ListenLoop {
 
             # If we've mapped a command
             if ($mappedCommand) {
+                if( $PSHost ) {
+                    'Mapped to {0}' -f $mappedCommand | Write-Host -ForegroundColor 'gray60'
+                }
                 # Run it, and capture all of the streams
                 $cmdParams = @{
                     Request = $Request
                 }
-                $result = . $mappedCommand @cmdParams # *>&1
+
+                [string] $requestCacheKey = $Request.Url.PathAndQuery
+                $result = Get-ResponseCache -Key $requestCacheKey
+
+                [string[]] $NeverCacheRouteNames = @(
+                    '/cache/list', '/cache/request/clear', '/cache/clear'
+                )
+
+                if( $null -eq $result -and -not ($requestCacheKey -in $NeverCacheRouteNames ) ) {
+                    if( $PSHost ) {
+                        'Cache key is stale: "{0}"' -f $requestCacheKey | Write-Host -fg 'gray80'
+                        'Cache key is stale: "{0}"' -f $requestCacheKey | Write-Host -fg 'gray80'
+                    }
+                    # Cache is stale, so invoke the Url Route
+                    $result = . $mappedCommand @cmdParams # *>&1
+
+                    Set-ResponseCache -Key $requestCacheKey -Value $result
+                }
 
                 # The result can tell us it is a content type by giving itself a content type as a type name
                 $ContentTypePattern = '^(?>audio|application|font|image|message|model|text|video)/.+?'
