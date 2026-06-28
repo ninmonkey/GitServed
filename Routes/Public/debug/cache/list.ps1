@@ -8,11 +8,11 @@
     [OutputType( 'GitServe.Route.Cache.List' )]
     param()
     $cache = $Script:ResponseCache
-    $cache.GetEnumerator() | %{
+    ,@( $cache.GetEnumerator() | %{
         [pscustomobject][ordered]@{
             PSTypeName = 'GitServe.Route.Cache.List'
             Key        = $_.Key
             ValueType  = $_.Value | % GetType | % Name | Sort-Object -unique | Join-String -sep ', '
         }
-    }
+    })
 }

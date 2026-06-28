@@ -111,15 +111,20 @@ function Start-ListenLoop {
                     '/cache/list', '/cache/request/clear', '/cache/clear'
                 )
 
-                if( $null -eq $result -and -not ($requestCacheKey -in $NeverCacheRouteNames ) ) {
+                $neverCacheResponse = $requestCacheKey -in $NeverCacheRouteNames
+                if( $null -eq $result -or $neverCacheResponse ) {
                     if( $PSHost ) {
-                        'Cache key is stale: "{0}"' -f $requestCacheKey | Write-Host -fg 'gray80'
-                        'Cache key is stale: "{0}"' -f $requestCacheKey | Write-Host -fg 'gray80'
+                        'Cache key is stale: "{0}" ( neverCache: {1} )' -f @(
+                            $requestCacheKey
+                            $neverCacheResponse
+                        ) | Write-Host -fg 'gray80'
                     }
                     # Cache is stale, so invoke the Url Route
                     $result = . $mappedCommand @cmdParams # *>&1
 
-                    Set-ResponseCache -Key $requestCacheKey -Value $result
+                    if( -not $neverCacheResponse ) {
+                        Set-ResponseCache -Key $requestCacheKey -Value $result
+                    }
                 }
 
                 # The result can tell us it is a content type by giving itself a content type as a type name
