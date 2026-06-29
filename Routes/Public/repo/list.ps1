@@ -9,20 +9,18 @@
     #>
     [OutputType( 'GitServe.Route.Repo.List' )]
     param()
-
-    $cacheKey = '/repo/list'
+    $binGit = Get-Command -CommandType Application -Name 'git' -ea 'Stop' -TotalCount 1
 
     $searchRoot = @( GetConfig.ClonedRepoRoot )
     $findGitRepos = Get-ChildItem $searchRoot -Filter '.git' -Directory -Force -Recurse | ForEach-Object Parent
 
-
     $records = @(
         foreach ($repoPath in $findGitRepos) {
             $absolutePath = $repoPath.FullName
-            $remote = ( gitreal -C $absolutePath remote get-url origin 2>$null ) ?? '<empty-remote>'
-            $commitCount = ( gitreal -C $absolutePath rev-list --count HEAD )
-            $newestCommitRelative = ( gitreal -C $absolutePath log -1 --format=%cr )
-            $newestCommitDateOnly = ( gitreal -C $absolutePath log -n 1 --format=%cd --date=format:'%Y-%m-%d' )
+            $remote = ( & $binGit -C $absolutePath remote get-url origin 2>$null ) ?? '<empty-remote>'
+            $commitCount = ( & $binGit -C $absolutePath rev-list --count HEAD )
+            $newestCommitRelative = ( & $binGit -C $absolutePath log -1 --format=%cr )
+            $newestCommitDateOnly = ( & $binGit -C $absolutePath log -n 1 --format=%cd --date=format:'%Y-%m-%d' )
             $ownerPathName = $repoPath.FullName | Split-path -Parent | split-path  -Leaf
 
             [pscustomobject][ordered]@{
