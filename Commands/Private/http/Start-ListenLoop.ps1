@@ -120,7 +120,20 @@ function Start-ListenLoop {
                         ) | Write-Host -fg 'yellow'
                     }
                     # Cache is stale, so invoke the Url Route
-                    $result = . $mappedCommand @cmdParams # *>&1
+                    try {
+                        $result = . $mappedCommand @cmdParams # *>&1
+                    } catch {
+                        $response.StatusCode = [System.Net.HttpStatusCode]::InternalServerError
+                        $result = [pscustomobject]@{
+                            PSTypeName = 'GitServe.Route.Error'
+                            Message = 'Invalid Route'
+                            Route      = $mappedCommand.Name
+                            Query      = $request.Url.PathAndQuery
+                            Request    = $Request.Url.ToSTring()
+                            Error      = $_.Exception.Message.ToString()
+                            # StackTrace = $_.Exception.StackTrace
+                        }
+                    }
 
                     if( -not $neverCacheResponse ) {
                         Set-ResponseCache -Key $requestCacheKey -Value $result
