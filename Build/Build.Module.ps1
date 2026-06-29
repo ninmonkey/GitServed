@@ -246,6 +246,8 @@ if( $commands_summary.count -gt 0 ) {
 }
 #endregion Write Source to Files
 
+"*.psm1 build complete!`a" | Write-Host -fg 'green'
+
 #region Write Format Files
 if( $true )  {
     Write-Verbose 'Build FormatData and TypeData?: Skipped...'

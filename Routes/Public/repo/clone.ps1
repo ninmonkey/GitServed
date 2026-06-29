@@ -21,6 +21,8 @@
     InvokeCli.Git.CloneRepo -Url $gitUrl -path (GetConfig.ClonedRepoRoot -First)
         | Write-Debug
 
+    Clear-ResponseCacheKey -Key '/repo/list' -Verbose:$false
+
     [pscustomobject]@{
         PSTypeName         = 'GitServe.Route.Repo.Clone'
         Query              = $request.Url.PathAndQuery
