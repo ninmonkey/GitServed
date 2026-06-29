@@ -11,6 +11,10 @@
     .EXAMPLE
         irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep'
     .EXAMPLE
+        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&since=2.months'
+        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&after=2024-01-01'
+        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&before=2026-01-01'
+    .EXAMPLE
     .LINK
         GitServe\Metric-GitServeCommitCount
     #>
@@ -49,7 +53,7 @@
             '--before={0}' -f $parsedQuery.Get('before')
         }
         if( $parsedQuery.Get('after') ) {
-            '--before={0}' -f $parsedQuery.Get('after')
+            '--after={0}' -f $parsedQuery.Get('after')
         }
 
         # '-n'
