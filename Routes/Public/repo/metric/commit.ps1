@@ -3,9 +3,13 @@
     .SYNOPSIS
         Number of commits grouped and sorted by: "<Year>-<Month>_<GitUserName>" as text Descending
     .DESCRIPTION
+    Query Parameters:
+        name   - Short repo name like "BurntSushi/ripgrep"
+        since  - "2.months"
+        after  - '2024-01-01'
+        before - '2024-01-01'
     .EXAMPLE
-        irm 'http://127.0.0.1:3001/repo/metric/commit?repo=BurntSushi/ripgrep'
-        irm 'http://127.0.0.1:3001/repo/metric/commit?url=microsoft/vscode-tmdl'
+        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep'
     .EXAMPLE
     .LINK
         GitServe\Metric-GitServeCommitCount
@@ -18,8 +22,10 @@
         [Net.HttpListenerRequest] $Request
     )
     $endpointLabel = '/repo/metric/commit'
-    $parsedQuery = [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
-    [string] $OwnerRepoPair = @( $parsedQuery.GetValues('url') )
+    [Collections.Specialized.NameValueCollection] $parsedQuery =
+        [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
+
+    [string] $OwnerRepoPair = $parsedQuery.Get('name')
 
     if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
         $ClonedRepoRoot = GetConfig.ClonedRepoRoot | Get-Item -ea 'stop'
@@ -35,11 +41,21 @@
     # $binGit = Get-Command -CommandType Application -Name 'git' -ea 'Stop' -TotalCount 1
     [Collections.Generic.List[object]] $gitArgs = @(
         'log'
+
+        if( $parsedQuery.Get('since') ) {
+            '--since={0}' -f $parsedQuery.Get('since')
+        }
+        if( $parsedQuery.Get('before') ) {
+            '--before={0}' -f $parsedQuery.Get('before')
+        }
+        if( $parsedQuery.Get('after') ) {
+            '--before={0}' -f $parsedQuery.Get('after')
+        }
+
         # '-n'
         # '100'
         '-C'
-        $RepoPath
-        # $OwnerRoot # if not using provider, declare path
+        $RepoPath # Note, ugit requires '-C' to be the final param, git native requires first
     )
 
     $gitArgs
@@ -48,8 +64,7 @@
 
     try {
         $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
-        # [object[]]
-        $results = Use-git -GitArg $gitArgs
+        [object[]] $results = Use-git -GitArg $gitArgs
             | GitServe.Metric.CommitCount
             # | Select-Object -Property $SelectProperty
     } catch {
@@ -60,6 +75,6 @@
     }
     finally { }
 
-    return $results
+    return ,$results
     #endregion Invoke Git Args
 }
