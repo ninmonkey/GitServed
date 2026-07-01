@@ -14,6 +14,9 @@
         irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&since=2.months'
         irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&after=2024-01-01'
         irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&before=2026-01-01'
+    .example
+        # multiple filters
+        irm 'http://127.0.0.1:3001/repo/metric/commit?name=startautomating/ezout&after=2024-01-01&before=2024-09-04'
     .EXAMPLE
     .LINK
         GitServe\Metric-GitServeCommitCount
