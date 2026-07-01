@@ -14,18 +14,23 @@
     $searchRoot = @( GetConfig.ClonedRepoRoot )
     $findGitRepos = Get-ChildItem $searchRoot -Filter '.git' -Directory -Force -Recurse | ForEach-Object Parent
 
+    $delim = "`u{2400}" # unique, but safe to print delimiter
+
     $records = @(
         foreach ($repoPath in $findGitRepos) {
             $absolutePath = $repoPath.FullName
             $remote = ( & $binGit -C $absolutePath remote get-url origin 2>$null ) ?? '<empty-remote>'
-            $commitCount = ( & $binGit -C $absolutePath rev-list --count HEAD )
-            $newestCommitRelative = ( & $binGit -C $absolutePath log -1 --format=%cr )
-            $newestCommitDateOnly = ( & $binGit -C $absolutePath log -n 1 --format=%cd --date=format:'%Y-%m-%d' )
+            # $commitCount = ( & $binGit -C $absolutePath rev-list --count HEAD ) # disabled(slow): commit count
+
+            # Grab latest commit date and relative using a single git call. Then split by delim.
+            $out           = & $binGit -C $absolutePath log -n 1 "--format=%cr${delim}%cd" --date = format:'%Y-%m-%d'
+            $newestCommitRelative, $newestCommitDateOnly = $out -split $delim, 2
+
             $ownerPathName = $repoPath.FullName | Split-path -Parent | split-path  -Leaf
 
             [pscustomobject][ordered]@{
                 PSTypeName           = 'GitServe.Route.Repo.List'
-                CommitCount          = $commitCount
+                # CommitCount          = $commitCount  # disabled(slow): commit count
                 Name                 = $repoPath.BaseName
                 NewestCommitDate     = $newestCommitDateOnly
                 NewestCommitRelative = $newestCommitRelative
