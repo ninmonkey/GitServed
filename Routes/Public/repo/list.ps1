@@ -23,7 +23,7 @@
             # $commitCount = ( & $binGit -C $absolutePath rev-list --count HEAD ) # disabled(slow): commit count
 
             # Grab latest commit date and relative using a single git call. Then split by delim.
-            $out           = & $binGit -C $absolutePath log -n 1 "--format=%cr${delim}%cd" --date = format:'%Y-%m-%d'
+            $out           = (  & $binGit -C $absolutePath log -n 1 "--format=%cr`u{2400}%cd" '--date=format:%Y-%m-%d' )
             $newestCommitRelative, $newestCommitDateOnly = $out -split $delim, 2
 
             $ownerPathName = $repoPath.FullName | Split-path -Parent | split-path  -Leaf
