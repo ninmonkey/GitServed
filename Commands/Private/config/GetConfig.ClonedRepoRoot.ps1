@@ -13,7 +13,9 @@
         [switch] $FirstOnly
     )
 
-    $potential = @( 'H:/RootClonedRepos', '/cloned-repos' )
+    $potential = @(
+        'c:/GitLoggerApp\ClonedRepos', '/cloned-repos'
+    )
 
     $rootPaths = @(
         $potential
