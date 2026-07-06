@@ -1,6 +1,6 @@
 <#
 .Description
-    Module built on: 2026-06-28 13:27:32Z
+    Module built on: 2026-07-06 15:55:25Z
 #>
 
 #region Module.Before.ps1
@@ -37,6 +37,24 @@ $script:ResponseCache = [hashtable]::Synchronized(@{})
 
 
 #region Private Module Functions
+
+function Clear-ResponseCacheKey {
+    <#
+    .SYNOPSIS
+        (internal) Clears cache by key names
+    .NOTES
+        Currently it allows  you to set the value to null
+    #>
+    [CmdletBinding()]
+    param(
+        [Alias('Name') ]
+        [Parameter(Mandatory)]
+        [string] $KeyName
+    )
+    "Clear-ResponseCache -Key '${KeyName}'" | Write-Verbose
+    $cache = $Script:ResponseCache
+    $cache.Remove( $KeyName ) # safe for missing keys
+}
 
 
 
@@ -171,7 +189,9 @@ function GetConfig.ClonedRepoRoot {
         [switch] $FirstOnly
     )
 
-    $potential = @( 'H:/RootClonedRepos', '/cloned-repos' )
+    $potential = @(
+        'c:/GitLoggerApp\ClonedRepos', '/cloned-repos'
+    )
 
     $rootPaths = @(
         $potential
@@ -540,7 +560,20 @@ function Start-ListenLoop {
                         ) | Write-Host -fg 'yellow'
                     }
                     # Cache is stale, so invoke the Url Route
-                    $result = . $mappedCommand @cmdParams # *>&1
+                    try {
+                        $result = . $mappedCommand @cmdParams # *>&1
+                    } catch {
+                        $response.StatusCode = [System.Net.HttpStatusCode]::InternalServerError
+                        $result = [pscustomobject]@{
+                            PSTypeName = 'GitServe.Route.Error'
+                            Message = 'Invalid Route'
+                            Route      = $mappedCommand.Name
+                            Query      = $request.Url.PathAndQuery
+                            Request    = $Request.Url.ToSTring()
+                            Error      = $_.Exception.Message.ToString()
+                            # StackTrace = $_.Exception.StackTrace
+                        }
+                    }
 
                     if( -not $neverCacheResponse ) {
                         Set-ResponseCache -Key $requestCacheKey -Value $result
@@ -992,9 +1025,9 @@ function Start-GitServe {
         [Alias('DebugInfo')]
         [switch] $PSHost
     )
-    if( $Script:Listener.IsListening ) {
-        Stop-GitServe
-    }
+    # if( $Script:Listener.IsListening ) {
+    #     Stop-GitServe
+    # }
     $state = $Script:ModuleState
     if( $null -eq $Script:Listener ) {
         $Script:Listener = [Net.HttpListener]::new()
@@ -1020,8 +1053,12 @@ function Start-GitServe {
 
     # foreach( $curPrefix in $prefix ) {
     # }
-    $curListener.Prefixes
-        | Join-String -f '    add prefix {0}' | Write-Host -fg 'gray50'
+    if( $PSHost ) {
+        $prefix
+            | Join-String -f '    prefix {0}' | Write-Host -fg 'gray50'
+        $curListener.Prefixes
+            | Join-String -f '    add prefix {0}' | Write-Host -fg 'gray50'
+    }
 
     try {
         $curListener.Start()
@@ -1150,6 +1187,8 @@ function /repo/clone {
     InvokeCli.Git.CloneRepo -Url $gitUrl -path (GetConfig.ClonedRepoRoot -First)
         | Write-Debug
 
+    Clear-ResponseCacheKey -Key '/repo/list' -Verbose:$false
+
     [pscustomobject]@{
         PSTypeName         = 'GitServe.Route.Repo.Clone'
         Query              = $request.Url.PathAndQuery
@@ -1164,9 +1203,20 @@ function /repo/metric/commit {
     .SYNOPSIS
         Number of commits grouped and sorted by: "<Year>-<Month>_<GitUserName>" as text Descending
     .DESCRIPTION
+    Query Parameters:
+        name   - Short repo name like "BurntSushi/ripgrep"
+        since  - "2.months"
+        after  - '2024-01-01'
+        before - '2024-01-01'
     .EXAMPLE
-        irm 'http://127.0.0.1:3001/repo/metric/commit?repo=BurntSushi/ripgrep'
-        irm 'http://127.0.0.1:3001/repo/metric/commit?url=microsoft/vscode-tmdl'
+        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep'
+    .EXAMPLE
+        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&since=2.months'
+        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&after=2024-01-01'
+        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&before=2026-01-01'
+    .example
+        # multiple filters
+        irm 'http://127.0.0.1:3001/repo/metric/commit?name=startautomating/ezout&after=2024-01-01&before=2024-09-04'
     .EXAMPLE
     .LINK
         GitServe\Metric-GitServeCommitCount
@@ -1179,8 +1229,10 @@ function /repo/metric/commit {
         [Net.HttpListenerRequest] $Request
     )
     $endpointLabel = '/repo/metric/commit'
-    $parsedQuery = [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
-    [string] $OwnerRepoPair = @( $parsedQuery.GetValues('url') )
+    [Collections.Specialized.NameValueCollection] $parsedQuery =
+        [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
+
+    [string] $OwnerRepoPair = $parsedQuery.Get('name')
 
     if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
         $ClonedRepoRoot = GetConfig.ClonedRepoRoot | Get-Item -ea 'stop'
@@ -1196,11 +1248,21 @@ function /repo/metric/commit {
     # $binGit = Get-Command -CommandType Application -Name 'git' -ea 'Stop' -TotalCount 1
     [Collections.Generic.List[object]] $gitArgs = @(
         'log'
+
+        if( $parsedQuery.Get('since') ) {
+            '--since={0}' -f $parsedQuery.Get('since')
+        }
+        if( $parsedQuery.Get('before') ) {
+            '--before={0}' -f $parsedQuery.Get('before')
+        }
+        if( $parsedQuery.Get('after') ) {
+            '--after={0}' -f $parsedQuery.Get('after')
+        }
+
         # '-n'
         # '100'
         '-C'
-        $RepoPath
-        # $OwnerRoot # if not using provider, declare path
+        $RepoPath # Note, ugit requires '-C' to be the final param, git native requires first
     )
 
     $gitArgs
@@ -1209,8 +1271,7 @@ function /repo/metric/commit {
 
     try {
         $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
-        # [object[]]
-        $results = Use-git -GitArg $gitArgs
+        [object[]] $results = Use-git -GitArg $gitArgs
             | GitServe.Metric.CommitCount
             # | Select-Object -Property $SelectProperty
     } catch {
@@ -1221,7 +1282,7 @@ function /repo/metric/commit {
     }
     finally { }
 
-    return $results
+    return ,$results
     #endregion Invoke Git Args
 }
 
@@ -1266,24 +1327,28 @@ function /repo/list {
     #>
     [OutputType( 'GitServe.Route.Repo.List' )]
     param()
-
-    $cacheKey = '/repo/list'
+    $binGit = Get-Command -CommandType Application -Name 'git' -ea 'Stop' -TotalCount 1
 
     $searchRoot = @( GetConfig.ClonedRepoRoot )
     $findGitRepos = Get-ChildItem $searchRoot -Filter '.git' -Directory -Force -Recurse | ForEach-Object Parent
 
+    $delim = "`u{2400}" # unique, but safe to print delimiter
+
     $records = @(
         foreach ($repoPath in $findGitRepos) {
             $absolutePath = $repoPath.FullName
-            $remote = ( & git -C $absolutePath remote get-url origin 2>$null ) ?? '<empty-remote>'
-            $commitCount = ( & git -C $absolutePath rev-list --count HEAD )
-            $newestCommitRelative = ( & git -C $absolutePath log -1 --format=%cr )
-            $newestCommitDateOnly = ( & git -C $absolutePath log -n 1 --format=%cd --date=format:'%Y-%m-%d' )
+            $remote = ( & $binGit -C $absolutePath remote get-url origin 2>$null ) ?? '<empty-remote>'
+            # $commitCount = ( & $binGit -C $absolutePath rev-list --count HEAD ) # disabled(slow): commit count
+
+            # Grab latest commit date and relative using a single git call. Then split by delim.
+            $out           = (  & $binGit -C $absolutePath log -n 1 "--format=%cr`u{2400}%cd" '--date=format:%Y-%m-%d' )
+            $newestCommitRelative, $newestCommitDateOnly = $out -split $delim, 2
+
             $ownerPathName = $repoPath.FullName | Split-path -Parent | split-path  -Leaf
 
             [pscustomobject][ordered]@{
                 PSTypeName           = 'GitServe.Route.Repo.List'
-                CommitCount          = $commitCount
+                # CommitCount          = $commitCount  # disabled(slow): commit count
                 Name                 = $repoPath.BaseName
                 NewestCommitDate     = $newestCommitDateOnly
                 NewestCommitRelative = $newestCommitRelative
