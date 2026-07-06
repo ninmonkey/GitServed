@@ -10,9 +10,9 @@ function _PickRepo {
     [CmdletBinding()]
     param(
         # Root folder of cloned repos
-        [ArgumentCompletions( 'H:\RootClonedRepos', '.' )]
+        [ArgumentCompletions( 'C:\GitLoggerApp\ClonedRepos', '.' )]
         [Parameter()]
-        [string] $BaseRepoPath = 'H:/RootClonedRepos'
+        [string] $BaseRepoPath = 'C:\GitLoggerApp\ClonedRepos'
     )
     $choices = Mint.Find-GitRepository -BaseDirectory $BaseRepoPath -MaxDepth 4 -PassTHru
     $pick = $choices.fullName | fzf | Get-Item
