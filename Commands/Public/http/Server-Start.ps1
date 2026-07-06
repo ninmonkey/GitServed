@@ -54,9 +54,9 @@
         [Alias('DebugInfo')]
         [switch] $PSHost
     )
-    if( $Script:Listener.IsListening ) {
-        Stop-GitServe
-    }
+    # if( $Script:Listener.IsListening ) {
+    #     Stop-GitServe
+    # }
     $state = $Script:ModuleState
     if( $null -eq $Script:Listener ) {
         $Script:Listener = [Net.HttpListener]::new()
@@ -82,8 +82,12 @@
 
     # foreach( $curPrefix in $prefix ) {
     # }
-    $curListener.Prefixes
-        | Join-String -f '    add prefix {0}' | Write-Host -fg 'gray50'
+    if( $PSHost ) {
+        $prefix
+            | Join-String -f '    prefix {0}' | Write-Host -fg 'gray50'
+        $curListener.Prefixes
+            | Join-String -f '    add prefix {0}' | Write-Host -fg 'gray50'
+    }
 
     try {
         $curListener.Start()
