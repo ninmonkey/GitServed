@@ -1,18 +1,18 @@
 GitServed.code-workspace
 GitServe.code-workspace
-*.zip
-*.dll
-*.exe
 PSScriptAnalyzerSettings.psd1
 
 # Ignore test files
-/Scratch/
+Scratch/
 
-# ignore common binaries andartifact paths
+# ignore common binaries and artifact paths
 # /dist
 # /out
 # /Release
-node_modules
+
+# node/js
+node_modules/
+.next/
 
 # common "binaries" or non-code artifacts
 *.{exe,dll,zip}
@@ -23,3 +23,18 @@ node_modules
 
 # other unwanted text files
 *.{log,csv,json,tmp,txt}
+
+# cloned pwsh module
+app-gitserve/
+
+# this is already ignored, but listed to as explicit
+app-front/node_modules
+app-front/.next
+
+# always exclude filetypes
+*.log
+*.dll
+*.zip
+
+# other:
+# Scratch/
