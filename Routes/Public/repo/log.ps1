@@ -26,7 +26,7 @@
         # [string] $OwnerRepoPair
     )
     $parsedQuery = [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
-    [string] $OwnerRepoPair = @( $parsedQuery.GetValues('url') )
+    [string] $OwnerRepoPair = @( $parsedQuery.GetValues('name') )
     $UsingUGit = $true
 
     if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
