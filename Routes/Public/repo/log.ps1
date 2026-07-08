@@ -3,8 +3,18 @@
     .SYNOPSIS
         Return git logs based on repo OwnerRepoPair '/<owner>/<repo>'
     .DESCRIPTION
+    Query Parameters:
+        name: [string]
+            The short 'OwnerRepoPair' for a cloned repo. Like:
+            BurntSushi/ripgrep
+
+        limit: [int]
+            Return at most this many records.
+            ( The git logs limit parameter )
+
     .EXAMPLE
-        irm 'http://127.0.0.1:3001/repo/log?repo=BurntSushi/ripgrep'
+        irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep'
+        irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep&limit=4'
     .EXAMPLE
 
     .EXAMPLE
@@ -26,7 +36,8 @@
         # [string] $OwnerRepoPair
     )
     $parsedQuery = [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
-    [string] $OwnerRepoPair = @( $parsedQuery.GetValues('name') )
+    [string] $OwnerRepoPair = $parsedQuery.Get('name')
+    [int] $MaxLogs = $parsedQuery.Get('limit')
     $UsingUGit = $true
 
     if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
@@ -34,7 +45,7 @@
         'RootPath: {0}' -f ( $ClonedRepoRoot ) | Write-Verbose
     }
     $RepoPath = Join-Path $ClonedRepoRoot $OwnerRepoPair # todo(sanitization): use a better escape and match method
-    if( ! ( Test-Path $RepoPath )) {
+    if ( ! ( Test-Path $RepoPath )) {
         "/repo/log Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'" | Write-Host -fore red
         throw "/repo/log Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'"
     }
@@ -45,30 +56,39 @@
         '-C'
         $RepoPath
         'log'
-        '-n'
-        '100'
+        if ( $MaxLogs ) {
+            '-n'
+            $MaxLogs
+        }
         # $OwnerRoot # if not using provider, declare path
     )
 
     $gitArgs
-        | Join-String -sep ' ' -op 'Clone: invoke ''git'' => '
-        | Write-Verbose
+    | Join-String -sep ' ' -op 'Clone: invoke ''git'' => '
+    | Write-Verbose
 
-    if( $UsingUGit ) { #  use regular git or ugit
+    if ( $UsingUGit ) {
+        #  use regular git or ugit
         # note: this is because ugit doesn't support '-C' flag (edit: does if last)
         try {
             Push-Location $RepoPath -ea 'stop' -StackName 'GitServe.Get-Log'
-            $gitArgs =  @( 'log', '-n', '100' )
+            $gitArgs = @(
+                'log'
+                if ( $MaxLogs ) {
+                    '-n'
+                    $MaxLogs
+                }
+            )
             $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
 
-
             $results = & 'Ugit\git' @gitArgs
-                | Select-Object -Property $SelectProperty
-        } catch {
+            | Select-Object -Property $SelectProperty
+        }
+        catch {
             "/repo/log Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
-                | Write-Host
+            | Write-Host
             "/repo/log Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
-                | Write-Error
+            | Write-Error
         }
         finally {
             Pop-Location -ea 'ignore' -StackName 'GitServe.Get-Log'
