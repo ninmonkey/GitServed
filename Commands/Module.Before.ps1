@@ -16,6 +16,8 @@ $script:ModuleState = [hashtable]::Synchronized(@{
     CorsAllowMethods = 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD'
     CorsAllowHeaders = 'Content-Type, Authorization, X-Requested-With'
     CorsAllowCredentials = $false
+
+    ClonedRepoRoot = @( 'c:/GitLoggerApp/ClonedRepos', '/cloned-repos' ) # configure with: GitServe.Set-ConfigRepoRoot
 })
 
 

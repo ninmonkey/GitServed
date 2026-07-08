@@ -1,7 +1,7 @@
 ﻿function GetConfig.Host {
     <#
     .synopsis
-        (internal) Get app configuration for root directories to search ( ie: local, vs docker, etc )
+        Get app configuration for root directories to search ( ie: local, vs docker, etc )
     .description
     EnvVars have priority, else fall back to defaults.
 
@@ -11,7 +11,7 @@
     .DESCRIPTION
         Get Url for Host, Port, Authority, etc
     #>
-
+    [Alias('GitServe.Get-ConfigHost')]
     [CmdletBinding()]
     param()
 

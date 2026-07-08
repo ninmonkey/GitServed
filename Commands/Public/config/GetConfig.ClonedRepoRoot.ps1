@@ -1,10 +1,11 @@
 ﻿function GetConfig.ClonedRepoRoot {
     <#
     .synopsis
-        (internal) Get app configuration for root directories to search ( ie: local, vs docker, etc )
+        Get app configuration for root directories to search ( ie: local, vs docker, etc )
     .DESCRIPTION
         Get root directories for cloned repos.
     #>
+    [Alias('GitServe.Get-ConfigRepoRoot')]
     [OutputType( [System.IO.DirectoryInfo[]] )]
     [CmdletBinding()]
     param(
@@ -13,12 +14,8 @@
         [switch] $FirstOnly
     )
 
-    $potential = @(
-        'c:/GitLoggerApp\ClonedRepos', '/cloned-repos'
-    )
-
     $rootPaths = @(
-        $potential
+        $script:ModuleState.ClonedRepoRoot
         | Where-Object { Test-Path $_ } | Get-Item -ea ignore
     )
 
