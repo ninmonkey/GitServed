@@ -4,6 +4,11 @@
         Return git logs based on repo OwnerRepoPair '/<owner>/<repo>'
     .DESCRIPTION
     Query Parameters:
+        name   - Short repo name like "BurntSushi/ripgrep"
+        since  - "2.months"
+        after  - '2024-01-01'
+        before - '2024-01-01'
+
         name: [string]
             The short 'OwnerRepoPair' for a cloned repo. Like:
             BurntSushi/ripgrep
@@ -11,17 +16,14 @@
         limit: [int]
             Return at most this many records.
             ( The git logs limit parameter )
-
     .EXAMPLE
         irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep'
         irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep&limit=4'
     .EXAMPLE
-
-    .EXAMPLE
-    .LINK
-        GitServe\Invoke-GitClone
-    .LINK
-        GitServe\GitServe.Clone
+        irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep&before=2025-01-01&limit=2'
+        irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep&since=2.weeks&limit=4'
+        irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep&before=2.month&limit=3'
+        irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep&since=2.month&limit=3'
     #>
 
     [OutputType( 'GitServe.Route.Repo.Log' )]
@@ -35,7 +37,11 @@
         # [Parameter(Mandatory)]
         # [string] $OwnerRepoPair
     )
-    $parsedQuery = [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
+    $endpointLabel = '/repo/log'
+    [Collections.Specialized.NameValueCollection] $parsedQuery =
+        [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
+
+
     [string] $OwnerRepoPair = $parsedQuery.Get('name')
     [int] $MaxLogs = $parsedQuery.Get('limit')
     $UsingUGit = $true
@@ -46,9 +52,26 @@
     }
     $RepoPath = Join-Path $ClonedRepoRoot $OwnerRepoPair # todo(sanitization): use a better escape and match method
     if ( ! ( Test-Path $RepoPath )) {
-        "/repo/log Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'" | Write-Host -fore red
-        throw "/repo/log Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'"
+        "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'" | Write-Host -fore red
+        throw "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'"
     }
+    # build git limiting args, which are common across ugit and git
+    $gitLimitArgs = @(
+        if( $parsedQuery.Get('since') ) {
+            '--since={0}' -f $parsedQuery.Get('since')
+        }
+        if( $parsedQuery.Get('before') ) {
+            '--before={0}' -f $parsedQuery.Get('before')
+        }
+        if( $parsedQuery.Get('after') ) {
+            '--after={0}' -f $parsedQuery.Get('after')
+        }
+        if ( $MaxLogs ) {
+            '-n'
+            $MaxLogs
+        }
+    )
+
     # Run real git with args:
     #region Invoke Real Git Args
     $binGit = Get-Command -CommandType Application -Name 'git' -ea 'Stop' -TotalCount 1
@@ -56,10 +79,7 @@
         '-C'
         $RepoPath
         'log'
-        if ( $MaxLogs ) {
-            '-n'
-            $MaxLogs
-        }
+        $gitLimitArgs
         # $OwnerRoot # if not using provider, declare path
     )
 
@@ -69,15 +89,12 @@
 
     if ( $UsingUGit ) {
         #  use regular git or ugit
-        # note: this is because ugit doesn't support '-C' flag (edit: does if last)
+        # note: this is because ugit doesn't support '-C' flag in the same order. ugit requires the swapped order.
         try {
             Push-Location $RepoPath -ea 'stop' -StackName 'GitServe.Get-Log'
             $gitArgs = @(
                 'log'
-                if ( $MaxLogs ) {
-                    '-n'
-                    $MaxLogs
-                }
+                $gitLimitArgs
             )
             $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
 
@@ -98,6 +115,7 @@
 
     # regular git
     $results = & $binGit @gitArgs
+    return $results
 
     <#
     $parsedQuery = [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
@@ -113,6 +131,5 @@
         # DebugRequest       = $Request
     }
     #>
-    $results
     #endregion Invoke Real Git Args
 }
