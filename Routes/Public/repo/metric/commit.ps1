@@ -25,6 +25,7 @@
     [Alias('GitServe.Get-Log')]
     [CmdletBinding()]
     param(
+        # a request from the listen server
         [Parameter(Mandatory)]
         [Net.HttpListenerRequest] $Request
     )

@@ -30,18 +30,15 @@
     [Alias('GitServe.Get-Log')]
     [CmdletBinding()]
     param(
+        # a request from the listen server
         [Parameter(Mandatory)]
         [Net.HttpListenerRequest] $Request
-
-        # [Alias('Name', 'RepoName')]
-        # [Parameter(Mandatory)]
-        # [string] $OwnerRepoPair
     )
     $endpointLabel = '/repo/log'
     [Collections.Specialized.NameValueCollection] $parsedQuery =
         [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
 
-
+    #region Build Git Args
     [string] $OwnerRepoPair = $parsedQuery.Get('name')
     [int] $MaxLogs = $parsedQuery.Get('limit')
     $UsingUGit = $true
@@ -71,9 +68,9 @@
             $MaxLogs
         }
     )
+    #endregion Build Git Args
 
-    # Run real git with args:
-    #region Invoke Real Git Args
+    #region Invoke Git
     $binGit = Get-Command -CommandType Application -Name 'git' -ea 'Stop' -TotalCount 1
     [Collections.Generic.List[object]] $gitArgs = @(
         '-C'
@@ -102,9 +99,9 @@
             | Select-Object -Property $SelectProperty
         }
         catch {
-            "/repo/log Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
+            "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
             | Write-Host
-            "/repo/log Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
+            "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
             | Write-Error
         }
         finally {
@@ -116,20 +113,5 @@
     # regular git
     $results = & $binGit @gitArgs
     return $results
-
-    <#
-    $parsedQuery = [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
-    [string] $gitUrl = @( $parsedQuery.GetValues('url') )[0]
-
-    InvokeCli.Git.CloneRepo -Url $gitUrl -path (GetConfig.ClonedRepoRoot -First)
-        | Write-Debug
-
-    [pscustomobject]@{
-        PSTypeName         = 'GitServe.Route.Repo.Clone'
-        Query              = $request.Url.PathAndQuery
-        CloneUrl           = $gitUrl
-        # DebugRequest       = $Request
-    }
-    #>
-    #endregion Invoke Real Git Args
+    #endregion Invoke Git
 }
