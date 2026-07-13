@@ -10,6 +10,9 @@
         before - '2024-01-01'
     .EXAMPLE
         irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep'
+        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&period=month'
+        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&period=day'
+        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&period=year'
     .EXAMPLE
         irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&since=2.months'
         irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&after=2024-01-01'
@@ -34,6 +37,7 @@
         [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
 
     [string] $OwnerRepoPair = $parsedQuery.Get('name')
+    [string] $Period = $parsedQuery.Get('period') ?? 'year'
 
     if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
         $ClonedRepoRoot = GetConfig.ClonedRepoRoot | Get-Item -ea 'stop'
@@ -73,7 +77,7 @@
     try {
         $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
         [object[]] $results = Use-git -GitArg $gitArgs
-            | GitServe.Metric.CommitCount
+            | GitServe.Metric.CommitCount -Period $Period
             # | Select-Object -Property $SelectProperty
     } catch {
         "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
