@@ -1,6 +1,6 @@
 <#
 .Description
-    Module built on: 2026-07-06 15:55:25Z
+    Module built on: 2026-07-13 07:28:27Z
 #>
 
 #region Module.Before.ps1
@@ -23,6 +23,8 @@ $script:ModuleState = [hashtable]::Synchronized(@{
     CorsAllowMethods = 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD'
     CorsAllowHeaders = 'Content-Type, Authorization, X-Requested-With'
     CorsAllowCredentials = $false
+
+    ClonedRepoRoot = @( 'c:/GitLoggerApp/ClonedRepos', '/cloned-repos' ) # configure with: GitServe.Set-ConfigRepoRoot
 })
 
 
@@ -172,65 +174,6 @@ function Get-ResponseCache {
     }
 
     return $cache[ $KeyName ]
-}
-
-function GetConfig.ClonedRepoRoot {
-    <#
-    .synopsis
-        (internal) Get app configuration for root directories to search ( ie: local, vs docker, etc )
-    .DESCRIPTION
-        Get root directories for cloned repos.
-    #>
-    [OutputType( [System.IO.DirectoryInfo[]] )]
-    [CmdletBinding()]
-    param(
-        # Always return the first match. Default is to return all
-        [Alias('LimitOne')]
-        [switch] $FirstOnly
-    )
-
-    $potential = @(
-        'c:/GitLoggerApp\ClonedRepos', '/cloned-repos'
-    )
-
-    $rootPaths = @(
-        $potential
-        | Where-Object { Test-Path $_ } | Get-Item -ea ignore
-    )
-
-    if( $First ) {
-        return $rootPaths | Select-Object -First 1
-    }
-    return $rootPaths
-}
-
-function GetConfig.Host {
-    <#
-    .synopsis
-        (internal) Get app configuration for root directories to search ( ie: local, vs docker, etc )
-    .description
-    EnvVars have priority, else fall back to defaults.
-
-        GITSERVE_PORT = 3001
-        GITSERVE_HOST = 127.0.0.1 # or '*' when using docker
-
-    .DESCRIPTION
-        Get Url for Host, Port, Authority, etc
-    #>
-
-    [CmdletBinding()]
-    param()
-
-    $Port     = $Env:GITSERVE_PORT ?? 3001
-    $HostName = $Env:GITSERVE_HOST ?? '127.0.0.1'
-    $Url      = "http://${HostName}:${Port}"
-
-    [pscustomobject]@{
-        PSTypeName = 'GitServe.Config.Host'
-        Host       = $HostName
-        Port       = $Port
-        Url        = $Url                    # ie: UriPartial::Authority
-    }
 }
 
 function InvokeCli.Git.CloneRepo { # or FromDictionaryEntry
@@ -821,6 +764,7 @@ function Metric-GitServeCommitCount {
         Expects input type: 'git.log'
     .EXAMPLE
         git log | Metric-CommitCount
+        git log | Metric-GitServeCommitCount -Period month
     .EXAMPLE
         Use-Git -GitArg 'log', '-n', 4, '-C', $path | GitServe.Metric.CommitCount
     #>
@@ -841,36 +785,45 @@ function Metric-GitServeCommitCount {
 
         # Input has 'ugit' properties like 'git.log'
         [Parameter(ValueFromPipeline)]
-        [object] $InputObject
+        [object] $InputObject,
+
+        # Period to aggregate by: 'year' | 'month' | 'day'
+        [ValidateSet('month', 'day', 'year')]
+        [string] $Period = 'month'
     )
     begin {
+        $dateDisplayFormat = 'yyyy-MM-dd'
+        switch( $Period ) {
+            'year' { $keyFormat  = 'yyyy' }
+            'month' { $keyFormat  = 'yyyy-MM' }
+            'day' { $keyFormat  = 'yyyy-MM-dd' }
+            default { throw "Invalid Period! ${Period}" }
+        }
         function __toKeyId {
             # Generate a PrimaryKey. This determines distinct testing for records
             param( $Obj )
             '{0}_{1}' -f @(
-                $Obj.CommitDate.ToString('yyyy-MM')
+                $Obj.CommitDate.ToString( $keyFormat )
                 $Obj.GitUserName
             )
         }
         $reverseComparer = [System.Collections.Generic.Comparer[string]]::Create({
             param($x, $y) [string]::Compare($y, $x)
-        })
+        }) # todo: use numeric date sort
         [Collections.Generic.SortedDictionary[string,object]] $metric = $reverseComparer
-
-        #//@{}
     }
     process {
         $key = __toKeyId $InputObject
         if( -not $metric.ContainsKey( $key ) ) {
             $initialValue = [pscustomobject][ordered]@{
                 PSTYpeName  = 'GitServe.Metric.CommitCount'
-                DateString  = $CommitDate.ToString('yyyy-MM')
+                DateDisplay  = $CommitDate.ToString( $dateDisplayFormat )
                 GitUserName = $GitUserName
                 CommitCount = 1
                 Year        = $CommitDate.Year
                 Month       = $CommitDate.Month
-                KeyId       = $key
                 CommitDate  = $CommitDate
+                KeyId       = $key
             }
             $metric[ $key ] = $initialValue
         } else {
@@ -932,6 +885,62 @@ function Format-GitServeRelativePath {
                 continue
             }
         }
+    }
+}
+
+function GetConfig.ClonedRepoRoot {
+    <#
+    .synopsis
+        Get app configuration for root directories to search ( ie: local, vs docker, etc )
+    .DESCRIPTION
+        Get root directories for cloned repos.
+    #>
+    [Alias('GitServe.Get-ConfigRepoRoot')]
+    [OutputType( [System.IO.DirectoryInfo[]] )]
+    [CmdletBinding()]
+    param(
+        # Always return the first match. Default is to return all
+        [Alias('LimitOne')]
+        [switch] $FirstOnly
+    )
+
+    $rootPaths = @(
+        $script:ModuleState.ClonedRepoRoot
+        | Where-Object { Test-Path $_ } | Get-Item -ea ignore
+    )
+
+    if( $First ) {
+        return $rootPaths | Select-Object -First 1
+    }
+    return $rootPaths
+}
+
+function GetConfig.Host {
+    <#
+    .synopsis
+        Get app configuration for root directories to search ( ie: local, vs docker, etc )
+    .description
+    EnvVars have priority, else fall back to defaults.
+
+        GITSERVE_PORT = 3001
+        GITSERVE_HOST = 127.0.0.1 # or '*' when using docker
+
+    .DESCRIPTION
+        Get Url for Host, Port, Authority, etc
+    #>
+    [Alias('GitServe.Get-ConfigHost')]
+    [CmdletBinding()]
+    param()
+
+    $Port     = $Env:GITSERVE_PORT ?? 3001
+    $HostName = $Env:GITSERVE_HOST ?? '127.0.0.1'
+    $Url      = "http://${HostName}:${Port}"
+
+    [pscustomobject]@{
+        PSTypeName = 'GitServe.Config.Host'
+        Host       = $HostName
+        Port       = $Port
+        Url        = $Url                    # ie: UriPartial::Authority
     }
 }
 
@@ -1133,6 +1142,27 @@ function Stop-GitServe {  # 'Stop-GitServeServer' sounded bad
     }
 }
 
+function SetConfig.ClonedRepoRoot {
+    <#
+    .synopsis
+        Set app configuration for root directories to search ( ie: local, vs docker, etc )
+    .DESCRIPTION
+        Set root directories for cloned repos.
+    #>
+    [Alias('GitServe.Set-ConfigRepoRoot')]
+    [CmdletBinding()]
+    param(
+        # A list of root directories to search for git repos
+        [Alias('RootDirectory')]
+        [object[]] $Path
+    )
+
+    $script:ModuleState.ClonedRepoRoot = @( $Path )
+
+    # Clear cached repos since the path[s] have changed
+    Clear-ResponseCacheKey -Key '/repo/list' -Verbose:$false
+}
+
 function /cache/clear {
     <#
     .synopsis
@@ -1225,6 +1255,7 @@ function /repo/metric/commit {
     [Alias('GitServe.Get-Log')]
     [CmdletBinding()]
     param(
+        # a request from the listen server
         [Parameter(Mandatory)]
         [Net.HttpListenerRequest] $Request
     )
@@ -1368,30 +1399,44 @@ function /repo/log {
     .SYNOPSIS
         Return git logs based on repo OwnerRepoPair '/<owner>/<repo>'
     .DESCRIPTION
-    .EXAMPLE
-        irm 'http://127.0.0.1:3001/repo/log?repo=BurntSushi/ripgrep'
-    .EXAMPLE
+    Query Parameters:
+        name   - Short repo name like "BurntSushi/ripgrep"
+        since  - "2.months"
+        after  - '2024-01-01'
+        before - '2024-01-01'
 
+        name: [string]
+            The short 'OwnerRepoPair' for a cloned repo. Like:
+            BurntSushi/ripgrep
+
+        limit: [int]
+            Return at most this many records.
+            ( The git logs limit parameter )
     .EXAMPLE
-    .LINK
-        GitServe\Invoke-GitClone
-    .LINK
-        GitServe\GitServe.Clone
+        irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep'
+        irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep&limit=4'
+    .EXAMPLE
+        irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep&before=2025-01-01&limit=2'
+        irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep&since=2.weeks&limit=4'
+        irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep&before=2.month&limit=3'
+        irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep&since=2.month&limit=3'
     #>
 
     [OutputType( 'GitServe.Route.Repo.Log' )]
     [Alias('GitServe.Get-Log')]
     [CmdletBinding()]
     param(
+        # a request from the listen server
         [Parameter(Mandatory)]
         [Net.HttpListenerRequest] $Request
-
-        # [Alias('Name', 'RepoName')]
-        # [Parameter(Mandatory)]
-        # [string] $OwnerRepoPair
     )
-    $parsedQuery = [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
-    [string] $OwnerRepoPair = @( $parsedQuery.GetValues('url') )
+    $endpointLabel = '/repo/log'
+    [Collections.Specialized.NameValueCollection] $parsedQuery =
+        [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
+
+    #region Build Git Args
+    [string] $OwnerRepoPair = $parsedQuery.Get('name')
+    [int] $MaxLogs = $parsedQuery.Get('limit')
     $UsingUGit = $true
 
     if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
@@ -1399,41 +1444,61 @@ function /repo/log {
         'RootPath: {0}' -f ( $ClonedRepoRoot ) | Write-Verbose
     }
     $RepoPath = Join-Path $ClonedRepoRoot $OwnerRepoPair # todo(sanitization): use a better escape and match method
-    if( ! ( Test-Path $RepoPath )) {
-        "/repo/log Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'" | Write-Host -fore red
-        throw "/repo/log Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'"
+    if ( ! ( Test-Path $RepoPath )) {
+        "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'" | Write-Host -fore red
+        throw "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'"
     }
-    # Run real git with args:
-    #region Invoke Real Git Args
+    # build git limiting args, which are common across ugit and git
+    $gitLimitArgs = @(
+        if( $parsedQuery.Get('since') ) {
+            '--since={0}' -f $parsedQuery.Get('since')
+        }
+        if( $parsedQuery.Get('before') ) {
+            '--before={0}' -f $parsedQuery.Get('before')
+        }
+        if( $parsedQuery.Get('after') ) {
+            '--after={0}' -f $parsedQuery.Get('after')
+        }
+        if ( $MaxLogs ) {
+            '-n'
+            $MaxLogs
+        }
+    )
+    #endregion Build Git Args
+
+    #region Invoke Git
     $binGit = Get-Command -CommandType Application -Name 'git' -ea 'Stop' -TotalCount 1
     [Collections.Generic.List[object]] $gitArgs = @(
         '-C'
         $RepoPath
         'log'
-        '-n'
-        '100'
+        $gitLimitArgs
         # $OwnerRoot # if not using provider, declare path
     )
 
     $gitArgs
-        | Join-String -sep ' ' -op 'Clone: invoke ''git'' => '
-        | Write-Verbose
+    | Join-String -sep ' ' -op 'Clone: invoke ''git'' => '
+    | Write-Verbose
 
-    if( $UsingUGit ) { #  use regular git or ugit
-        # note: this is because ugit doesn't support '-C' flag (edit: does if last)
+    if ( $UsingUGit ) {
+        #  use regular git or ugit
+        # note: this is because ugit doesn't support '-C' flag in the same order. ugit requires the swapped order.
         try {
             Push-Location $RepoPath -ea 'stop' -StackName 'GitServe.Get-Log'
-            $gitArgs =  @( 'log', '-n', '100' )
+            $gitArgs = @(
+                'log'
+                $gitLimitArgs
+            )
             $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
 
-
             $results = & 'Ugit\git' @gitArgs
-                | Select-Object -Property $SelectProperty
-        } catch {
-            "/repo/log Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
-                | Write-Host
-            "/repo/log Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
-                | Write-Error
+            | Select-Object -Property $SelectProperty
+        }
+        catch {
+            "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
+            | Write-Host
+            "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
+            | Write-Error
         }
         finally {
             Pop-Location -ea 'ignore' -StackName 'GitServe.Get-Log'
@@ -1443,23 +1508,8 @@ function /repo/log {
 
     # regular git
     $results = & $binGit @gitArgs
-
-    <#
-    $parsedQuery = [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
-    [string] $gitUrl = @( $parsedQuery.GetValues('url') )[0]
-
-    InvokeCli.Git.CloneRepo -Url $gitUrl -path (GetConfig.ClonedRepoRoot -First)
-        | Write-Debug
-
-    [pscustomobject]@{
-        PSTypeName         = 'GitServe.Route.Repo.Clone'
-        Query              = $request.Url.PathAndQuery
-        CloneUrl           = $gitUrl
-        # DebugRequest       = $Request
-    }
-    #>
-    $results
-    #endregion Invoke Real Git Args
+    return $results
+    #endregion Invoke Git
 }
 
 
