@@ -1,6 +1,6 @@
 <#
 .Description
-    Module built on: 2026-07-13 07:28:27Z
+    Module built on: 2026-07-13 15:54:50Z
 #>
 
 #region Module.Before.ps1
@@ -264,6 +264,48 @@ function InvokeCli.Git.CloneRepo { # or FromDictionaryEntry
     }
 
     Set-Location -Path $OriginalPath
+    #endregion Invoke Real Git Args
+}
+
+function InvokeCli.Git.LsTree.Files {
+    <#
+    .SYNOPSIS
+        (internal) Invoke native git ls-tree to list files
+    .EXAMPLE
+        InvokeCli.Git.LsTree.Files -Repo 'https://github.com/owner/repo.git'
+    #>
+    # [Alias('InvokeCli.Git.LsTree.Files')]
+    [CmdletBinding()]
+    param(
+        # root directory to clone under. '/cloned-repos' would clone to '/cloned-repos/owner/repository'
+        [Parameter(Mandatory)]
+        [Alias('Path', 'PSPath', 'GitRepo', 'RepoRoot')]
+        [string] $GitRepositoryPath,
+
+        # default uses 'ls-tree --full-tree'
+        [switch] $WithoutIncludeFullTree
+    )
+
+    # Run real git with args:
+    #region Invoke Real Git Args
+    $binGit = Get-Command -CommandType Application -Name 'git' -ea 'Stop' -TotalCount 1
+    [Collections.Generic.List[object]] $gitArgs = @(
+        '-C'
+        (Get-Item -ea 'stop' $GitRepositoryPath)
+        'ls-tree'
+        '-r'
+        'HEAD'
+        if( $WithoutIncludeFullTree ) { '--full-tree' }
+        '--name-only'
+    )
+
+    $gitArgs
+        | Join-String -sep ' ' -op 'invoke ''git'' => '
+        | Write-Verbose
+
+    $results = & $binGit @gitArgs
+
+    $results
     #endregion Invoke Real Git Args
 }
 
@@ -789,14 +831,18 @@ function Metric-GitServeCommitCount {
 
         # Period to aggregate by: 'year' | 'month' | 'day'
         [ValidateSet('month', 'day', 'year')]
-        [string] $Period = 'month'
+        [string] $Period = 'month',
+
+        # ensure the date table is fully defined, even if missing.
+        [Alias('WithBlankDates')]
+        [ValidateScript({throw 'nyi'})]
+        [switch] $IncludeMissingDates
     )
     begin {
-        $dateDisplayFormat = 'yyyy-MM-dd'
         switch( $Period ) {
-            'year' { $keyFormat  = 'yyyy' }
-            'month' { $keyFormat  = 'yyyy-MM' }
-            'day' { $keyFormat  = 'yyyy-MM-dd' }
+            'year' { $keyFormat  = 'yyyy'; $dateDisplayFormat = 'yyyy' }
+            'month' { $keyFormat  = 'yyyy-MM'; $dateDisplayFormat = 'yyyy-MM' }
+            'day' { $keyFormat  = 'yyyy-MM-dd'; $dateDisplayFormat = 'yyyy-MM-dd' }
             default { throw "Invalid Period! ${Period}" }
         }
         function __toKeyId {
@@ -831,6 +877,9 @@ function Metric-GitServeCommitCount {
         }
     }
     end {
+        # if( $IncludeMissingDates ) {
+        #     # add any missing dates as explicit 0. Dates are based on the selected $period type. year/month/day/etc.
+        # }
         ,@( $metric.Values )
     }
 }
@@ -976,6 +1025,56 @@ function Invoke-GitServeClone {
     #     CloneUrl = $CloneUrl
     #     Result = '<NYI>'
     # }
+}
+
+function Metric-GitServeLanguageCount {
+    <#
+    .SYNOPSIS
+        Which languages are used in a repo
+    .NOTES
+        Expects input type: 'git.log'
+    .EXAMPLE
+        git log | Metric-LanguageCount
+        git log | Metric-GitServeLanguageCount -Period month
+    .EXAMPLE
+        GitServe.Metric.LanguageCount -Path '.'
+    #>
+    [Alias('GitServe.Metric.LangaugeCount')]
+    [OutputType(
+        '[System.Collections.Generic.SortedDictionary[string,object]]'
+    )]
+    [CmdletBinding()]
+    param(
+        # Path of git repo
+        [Parameter(Mandatory)]
+        [Alias('BaseDir', 'Repository', 'Path')]
+        [string] $GitRepositoryPath
+    )
+    begin {
+    }
+    process {
+    }
+    end {
+        $results = InvokeCli.Git.LsTree.Files -GitRepositoryPath $GitRepositoryPath
+        # note: slow because of the provider, but,
+        $instances = $results | %{
+            $_ -replace '.*/', '' -replace '.*\.', ''
+        }
+        $found = $instances | Group-Object -NoElement | Sort count -Descending
+        # $found = ($instances | Get-item | % Extension ) | Group-Object -NoElement | Sort count -Descending
+
+        $summary = $found.GetEnumerator() | %{
+            $extension = $_.Name -replace '^\.'
+            $count    = $_.Count
+            [pscustomobject][ordered]@{
+                PSTYpeName = 'GitServe.Metric.LanguageCount'
+                Extension  = $extension
+                Count      = $count
+                # KeyId      = $extension
+            }
+        }
+        , @( $summary )
+    }
 }
 
 function Start-GitServe {
@@ -1240,6 +1339,9 @@ function /repo/metric/commit {
         before - '2024-01-01'
     .EXAMPLE
         irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep'
+        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&period=month'
+        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&period=day'
+        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&period=year'
     .EXAMPLE
         irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&since=2.months'
         irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&after=2024-01-01'
@@ -1264,6 +1366,7 @@ function /repo/metric/commit {
         [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
 
     [string] $OwnerRepoPair = $parsedQuery.Get('name')
+    [string] $Period = $parsedQuery.Get('period') ?? 'year'
 
     if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
         $ClonedRepoRoot = GetConfig.ClonedRepoRoot | Get-Item -ea 'stop'
@@ -1303,7 +1406,7 @@ function /repo/metric/commit {
     try {
         $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
         [object[]] $results = Use-git -GitArg $gitArgs
-            | GitServe.Metric.CommitCount
+            | GitServe.Metric.CommitCount -Period $Period
             # | Select-Object -Property $SelectProperty
     } catch {
         "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
