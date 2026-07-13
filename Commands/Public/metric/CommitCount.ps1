@@ -31,7 +31,12 @@
 
         # Period to aggregate by: 'year' | 'month' | 'day'
         [ValidateSet('month', 'day', 'year')]
-        [string] $Period = 'month'
+        [string] $Period = 'month',
+
+        # ensure the date table is fully defined, even if missing.
+        [Alias('WithBlankDates')]
+        [ValidateScript({throw 'nyi'})]
+        [switch] $IncludeMissingDates
     )
     begin {
         switch( $Period ) {
@@ -72,6 +77,9 @@
         }
     }
     end {
+        # if( $IncludeMissingDates ) {
+        #     # add any missing dates as explicit 0. Dates are based on the selected $period type. year/month/day/etc.
+        # }
         ,@( $metric.Values )
     }
 }
