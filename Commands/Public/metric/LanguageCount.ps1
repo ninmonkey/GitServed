@@ -28,8 +28,11 @@
     end {
         $results = InvokeCli.Git.LsTree.Files -GitRepositoryPath $GitRepositoryPath
         # note: slow because of the provider, but,
-        $instances = $results | gi | % Extension
-        $found = ($instances | Get-item | % Extension ) | Group-Object -NoElement | Sort count -Descending
+        $instances = $results | %{
+            $_ -replace '.*/', '' -replace '.*\.', ''
+        }
+        $found = $instances | Group-Object -NoElement | Sort count -Descending
+        # $found = ($instances | Get-item | % Extension ) | Group-Object -NoElement | Sort count -Descending
 
         $summary = $found.GetEnumerator() | %{
             $extension = $_.Name -replace '^\.'
@@ -38,7 +41,7 @@
                 PSTYpeName = 'GitServe.Metric.LanguageCount'
                 Extension  = $extension
                 Count      = $count
-                KeyId      = $extension
+                # KeyId      = $extension
             }
         }
         , @( $summary )
