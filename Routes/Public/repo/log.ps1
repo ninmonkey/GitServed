@@ -27,7 +27,7 @@
     #>
 
     [OutputType( 'GitServe.Route.Repo.Log' )]
-    [Alias('GitServe.Get-Log')]
+    [Alias('GitServe.Route.Get-Log')]
     [CmdletBinding()]
     param(
         # a request from the listen server

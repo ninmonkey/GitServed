@@ -25,7 +25,7 @@
         GitServe\Metric-GitServeCommitCount
     #>
     [OutputType( 'GitServe.Route.Repo.Metric.Commit' )]
-    [Alias('GitServe.Get-Log')]
+    [Alias('GitServe.Route.Metric.Commit')]
     [CmdletBinding()]
     param(
         # a request from the listen server
