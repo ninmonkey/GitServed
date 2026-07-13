@@ -34,11 +34,10 @@
         [string] $Period = 'month'
     )
     begin {
-        $dateDisplayFormat = 'yyyy-MM-dd'
         switch( $Period ) {
-            'year' { $keyFormat  = 'yyyy' }
-            'month' { $keyFormat  = 'yyyy-MM' }
-            'day' { $keyFormat  = 'yyyy-MM-dd' }
+            'year' { $keyFormat  = 'yyyy'; $dateDisplayFormat = 'yyyy' }
+            'month' { $keyFormat  = 'yyyy-MM'; $dateDisplayFormat = 'yyyy-MM' }
+            'day' { $keyFormat  = 'yyyy-MM-dd'; $dateDisplayFormat = 'yyyy-MM-dd' }
             default { throw "Invalid Period! ${Period}" }
         }
         function __toKeyId {
