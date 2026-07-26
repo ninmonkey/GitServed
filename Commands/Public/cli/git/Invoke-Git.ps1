@@ -31,6 +31,10 @@ function Invoke-GitServeRealGit {
         > GitServe.Invoke-RealGit -DryRun -FromPath 'C:\data\myGit\GitServed' -ArgList 'log', '-n', '2'
     .example
         > GitServe.Invoke-RealGit -FromPath 'C:\data\myGit\GitServed' -ArgList 'log', '-n', '2'
+    .example
+        # example: list HEAD files
+        # the original command was: git.exe -C (gi '.') ls-tree -r HEAD --name-only
+        GitServe.Invoke-RealGit -Path '.' -GitArgList 'ls-tree', '-r', 'HEAD', '--name-only'
     #>
     [Alias(
         'GitServe.Invoke-RealGit'
@@ -42,7 +46,7 @@ function Invoke-GitServeRealGit {
         [string[]] $GitArgList,
 
         # What path will you execute from? This saves you the overhead of changing directories
-        [Alias('Path', 'PSPath')]
+        [Alias('Path', 'PSPath', 'GitRepositoryPath', 'RepoPath')]
         [Parameter()]
         [string] $FromPath, # = '.',
 
