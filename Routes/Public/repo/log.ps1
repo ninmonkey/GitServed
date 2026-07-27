@@ -52,7 +52,6 @@
         throw "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'"
     }
     # build git limiting args, which are common across ugit and git
-    #endregion Build Git Args
 
     [Collections.Generic.List[object]] $gitArgs = @(
         'log'
@@ -76,6 +75,7 @@
     if( $parsedQuery.Get('after') ) {
         $UGit_splat['after'] = $parsedQuery.Get('after')
     }
+    #endregion Build Git Args
 
     #region Invoke Git
     try {
