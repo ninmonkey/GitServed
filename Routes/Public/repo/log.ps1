@@ -56,15 +56,6 @@
 
     [Collections.Generic.List[object]] $gitArgs = @(
         'log'
-        if( $parsedQuery.Get('since') ) {
-            '--since={0}' -f $parsedQuery.Get('since')
-        }
-        if( $parsedQuery.Get('before') ) {
-            '--before={0}' -f $parsedQuery.Get('before')
-        }
-        if( $parsedQuery.Get('after') ) {
-            '--after={0}' -f $parsedQuery.Get('after')
-        }
         if ( $MaxLogs ) {
             '-n'
             $MaxLogs
@@ -72,10 +63,24 @@
     )
 
     $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
+    $UGit_splat = @{
+        FromPath = $RepoPath
+        GitArgList = $gitArgs
+    }
+    if( $parsedQuery.Get('since') ) {
+        $UGit_splat['since'] = $parsedQuery.Get('since')
+    }
+    if( $parsedQuery.Get('before') ) {
+        $UGit_splat['before'] = $parsedQuery.Get('before')
+    }
+    if( $parsedQuery.Get('after') ) {
+        $UGit_splat['after'] = $parsedQuery.Get('after')
+    }
 
     #region Invoke Git
     try {
-        $results = Invoke-GitServeUGit -FromPath $RepoPath -GitArgList $gitArgs
+
+        $results = Invoke-GitServeUGit @UGit_splat
             | Select-Object -Property $SelectProperty
     }
     catch {
