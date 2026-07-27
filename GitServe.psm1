@@ -1,6 +1,6 @@
 <#
 .Description
-    Module built on: 2026-07-27 09:27:23Z
+    Module built on: 2026-07-27 09:49:10Z
 #>
 
 #region Module.Before.ps1
@@ -1631,8 +1631,6 @@ function /repo/list {
     #>
     [OutputType( 'GitServe.Route.Repo.List' )]
     param()
-    $binGit = Get-Command -CommandType Application -Name 'git' -ea 'Stop' -TotalCount 1
-
     $searchRoot = @( GetConfig.ClonedRepoRoot )
     $findGitRepos = Get-ChildItem $searchRoot -Filter '.git' -Directory -Force -Recurse | ForEach-Object Parent
 
@@ -1640,14 +1638,18 @@ function /repo/list {
 
     $records = @(
         foreach ($repoPath in $findGitRepos) {
-            $absolutePath = $repoPath.FullName
-            $remote = ( & $binGit -C $absolutePath remote get-url origin 2>$null ) ?? '<empty-remote>'
-            # $commitCount = ( & $binGit -C $absolutePath rev-list --count HEAD ) # disabled(slow): commit count
+            # get remote, or fallback string
+            $remote = ( ( GitServe.Invoke-RealGit -FromPath $repoPath.FullName -GitArgList 'remote', 'get-url', 'origin'  ) 2>$Null ) ?? '<empty-remote>'
 
             # Grab latest commit date and relative using a single git call. Then split by delim.
-            $out           = (  & $binGit -C $absolutePath log -n 1 "--format=%cr`u{2400}%cd" '--date=format:%Y-%m-%d' )
-            $newestCommitRelative, $newestCommitDateOnly = $out -split $delim, 2
 
+            $delim = "`u{2400}"
+            $fStr = "--format=%cr${delim}%cd"
+            $out = GitServe.Invoke-RealGit -FromPath $repoPath.FullName -GitArgList @(
+                'log', '-n', '1',
+                $fStr, '--date=format:%Y-%m-%d'
+            )
+            $newestCommitRelative, $newestCommitDateOnly = $out -split $delim, 2
             $ownerPathName = $repoPath.FullName | Split-path -Parent | split-path  -Leaf
 
             [pscustomobject][ordered]@{
@@ -1725,15 +1727,6 @@ function /repo/log {
 
     [Collections.Generic.List[object]] $gitArgs = @(
         'log'
-        if( $parsedQuery.Get('since') ) {
-            '--since={0}' -f $parsedQuery.Get('since')
-        }
-        if( $parsedQuery.Get('before') ) {
-            '--before={0}' -f $parsedQuery.Get('before')
-        }
-        if( $parsedQuery.Get('after') ) {
-            '--after={0}' -f $parsedQuery.Get('after')
-        }
         if ( $MaxLogs ) {
             '-n'
             $MaxLogs
@@ -1741,10 +1734,24 @@ function /repo/log {
     )
 
     $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
+    $UGit_splat = @{
+        FromPath = $RepoPath
+        GitArgList = $gitArgs
+    }
+    if( $parsedQuery.Get('since') ) {
+        $UGit_splat['since'] = $parsedQuery.Get('since')
+    }
+    if( $parsedQuery.Get('before') ) {
+        $UGit_splat['before'] = $parsedQuery.Get('before')
+    }
+    if( $parsedQuery.Get('after') ) {
+        $UGit_splat['after'] = $parsedQuery.Get('after')
+    }
 
     #region Invoke Git
     try {
-        $results = Invoke-GitServeUGit -FromPath $RepoPath -GitArgList $gitArgs
+
+        $results = Invoke-GitServeUGit @UGit_splat
             | Select-Object -Property $SelectProperty
     }
     catch {
