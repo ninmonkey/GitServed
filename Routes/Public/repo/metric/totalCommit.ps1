@@ -1,8 +1,10 @@
-﻿function /repo/metric/commitcount {
+﻿function /repo/metric/totalcommit {
     <#
     .SYNOPSIS
         Number of commits grouped and sorted by: "<CommitDate> Descending
     .DESCRIPTION
+        You get one single aggregated record for each **date period**
+
     Query Parameters:
         name   - Short repo name like "BurntSushi/ripgrep"
         since  - "2.months"
@@ -85,7 +87,56 @@
     }
     finally { }
 
+    # todo(performance): redundant operations here
 
-    return ,$results
+    # first determine date dimension keys. Insert into sorted hashtable in-order
+    $results = $results | Sort-Object CommitDate
+    $groupByPeriod =  $results | Group-Object -Prop { $_.CommitDate.ToString('yyyy-MM-dd') }
+    [string[]] $datePeriodKeys = $groupByPeriod.Name
+
+    $dateAccum = [ordered]@{}
+    foreach( $name in $datePeriodKeys ) {
+        @{
+            CommitDate = $Null
+            XAxisKey = $name
+            CommitCount = 0
+            RepoName = '<RepoName>'
+        }
+    }
+
+
+    function _accumRecord {
+        # merge existing and new values
+        param(
+            [string] $KeyName,
+            [object] $Record
+        )
+    }
+
+    foreach( $groupRecord in $groupByPeriod ) {
+        $curKey = $groupRecord.Name
+        $totalCommits = $groupRecord.Group | Measure-Object -Sum -Property 'CommitCount' | Select-Object -ExpandProperty Sum
+        $firstDate = $groupRecord.Group
+                | Measure-object CommitDate -Minimum
+                | % Minimum
+
+
+        $dateAccum[ $curKey ] = [pscustomobject]@{
+            CommitDate = $FirstDate
+            # XAxisKey = $curKey
+            TotalCommits = $totalCommits ?? 0
+            RepoName = '<RepoName>'
+            OwnerRepoName = $OwnerRepoPair
+            Authors = $groupRecord.Group.GitUserName | Sort-Object -Unique
+        }
+    }
+
+
+
+    # $trash | Group -p { $_.CommitDate.Date } | sort  count
+
+
+    # return ,$results
+    return ,$dateAccum.Values
     #endregion Invoke Git Args
 }
