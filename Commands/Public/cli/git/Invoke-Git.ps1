@@ -1,25 +1,107 @@
-﻿# function Invoke-UGit {
+﻿
+# Cache the binary lookup because it's slow
+$script:BinRealGit = Get-Command -CommandType Application -Name 'git' -ea 'Continue' -TotalCount 1
+
 function Invoke-GitServeUGit {
     <#
     .synopsis
         always invokes UGit command
+    .notes
+        Use-Git requires -C param to be last, rather than first. ie:
+
+            > Use-Git -GitArgument @( 'log', '-n', '3', '-C', (gi '.' ) )
     .example
-        >
+        # RealGit vs UGit, same syntax:
+        > GitServe.Invoke-UGit    -FromPath (gi .) -GitArgList 'log', '-n', '3'
+        > GitServe.Invoke-RealGit -FromPath (gi .) -GitArgList 'log', '-n', '3'
+    .link
+        Invoke-GitServeRealGit
+    .link
+        Invoke-GitServeUGit
     #>
     [Alias(
         'GitServe.Invoke-UGit'
     )]
     [CmdletBinding()]
-    param()
-    throw "NYI"
-    #region collect UGIt args
-    #endregion collect UGIt args
+    param(
+        # Arguments passed to real 'git'. Or any not configurable from the other parameters
+        [Alias('ArgList', 'GitArgs', 'RealGitArgs')]
+        [string[]] $GitArgList,
+
+        # What path will you execute from? This saves you the overhead of changing directories
+        [Alias('Path', 'PSPath', 'GitRepositoryPath', 'RepoPath')]
+        [Parameter()]
+        [string] $FromPath, # = '.',
+
+        # view the commandline that *would* be ran, but don't actually run it.
+        [Alias('TestOnly', 'WhatIf')]
+        [switch] $DryRun,
+
+        # for git argument: '--since=<string>'
+        [ValidateScript({throw 'nyi'})]
+        [string] $Since,
+
+        # for git argument: '--before=<string>'
+        [ValidateScript({throw 'nyi'})]
+        [string] $Before,
+
+        # for git argument: '--after=<string>'
+        [ValidateScript({throw 'nyi'})]
+        [string] $After,
+
+        # Like -DryRun but returns the arguments instead of printing them
+        [Alias('PassThru')]
+        [switch] $OutputArgAsList,
+
+        # Write to host
+        [Alias('VerboseOutput')]
+        [switch] $PSHost
+    )
+    begin {
+        #region collect UGit args
+        $binGit = $script:BinRealGit
+        [Collections.Generic.List[Object]] $gitArgs = @()
+
+        if( $GitArgList ) {
+            # any extra parsing or filtering of user args?
+            $gitArgs.AddRange( @( $GitArgList ) )
+        }
+
+        # note: 'git' and 'ugit' requires you to place the '-C' args in a different location. The rest of the git args are normal between both.
+        if( $PSBoundParameters.ContainsKey('FromPath')) {
+            $absolutePath = Get-Item $FromPath -ea 'stop'
+            $gitArgs.AddRange( @('-C', $absolutePath.FullName ) )
+        }
+        #endregion collect UGit args
+    }
+    process { }
+    end {
+        #region invoke UseGit
+        "enter => '$( $MyInvocation.MyCommand.Name )'" | Write-Debug
+
+        if( $OutputArgAsList ) {
+            return @( $GitArgs )
+        }
+        if( $DryRun ) {
+            $gitArgs
+            | Join-String -sep ' ' -op 'Calling UseGit => git '
+            | Write-host -fg 'SlateGray'
+            return
+        }
+
+        # option to always log to host
+        if( $PSHost ) {
+            $gitArgs
+            | Join-String -sep ' ' -op '  UseGit => git '
+        }
+        $gitArgs
+            | Join-String -sep ' ' -op 'Calling UseGit => git '
+            | Write-Debug
+
+        Use-Git -GitArgument $gitArgs
+        #endregion invoke UseGit
+    }
 }
-
-# Cache the binary lookup because it's slow
-$script:BinRealGit = Get-Command -CommandType Application -Name 'git' -ea 'Continue' -TotalCount 1
-
-# function Invoke-RealGit {
 function Invoke-GitServeRealGit {
     <#
     .synopsis
@@ -35,6 +117,10 @@ function Invoke-GitServeRealGit {
         # example: list HEAD files
         # the original command was: git.exe -C (gi '.') ls-tree -r HEAD --name-only
         GitServe.Invoke-RealGit -Path '.' -GitArgList 'ls-tree', '-r', 'HEAD', '--name-only'
+    .link
+        Invoke-GitServeRealGit
+    .link
+        Invoke-GitServeUGit
     #>
     [Alias(
         'GitServe.Invoke-RealGit'
@@ -91,6 +177,7 @@ function Invoke-GitServeRealGit {
         }
         #endregion collect RealGit args
     }
+    process { }
     end {
         #region invoke RealGit
         "enter => '$( $MyInvocation.MyCommand.Name )'" | Write-Debug
