@@ -1,7 +1,7 @@
-﻿function /repo/metric/commit {
+﻿function /repo/metric/commitcount {
     <#
     .SYNOPSIS
-        Number of commits grouped and sorted by: "<Year>-<Month>_<GitUserName>" as text Descending
+        Number of commits grouped and sorted by: "<CommitDate> Descending
     .DESCRIPTION
     Query Parameters:
         name   - Short repo name like "BurntSushi/ripgrep"
@@ -9,17 +9,17 @@
         after  - '2024-01-01'
         before - '2024-01-01'
     .EXAMPLE
-        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep'
-        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&period=month'
-        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&period=day'
-        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&period=year'
+        irm 'http://127.0.0.1:3001/repo/metric/commitcount?name=BurntSushi/ripgrep'
+        irm 'http://127.0.0.1:3001/repo/metric/commitcount?name=BurntSushi/ripgrep&period=month'
+        irm 'http://127.0.0.1:3001/repo/metric/commitcount?name=BurntSushi/ripgrep&period=day'
+        irm 'http://127.0.0.1:3001/repo/metric/commitcount?name=BurntSushi/ripgrep&period=year'
     .EXAMPLE
-        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&since=2.months'
-        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&after=2024-01-01'
-        irm 'http://127.0.0.1:3001/repo/metric/commit?name=BurntSushi/ripgrep&before=2026-01-01'
+        irm 'http://127.0.0.1:3001/repo/metric/commitcount?name=BurntSushi/ripgrep&since=2.months'
+        irm 'http://127.0.0.1:3001/repo/metric/commitcount?name=BurntSushi/ripgrep&after=2024-01-01'
+        irm 'http://127.0.0.1:3001/repo/metric/commitcount?name=BurntSushi/ripgrep&before=2026-01-01'
     .example
         # multiple filters
-        irm 'http://127.0.0.1:3001/repo/metric/commit?name=startautomating/ezout&after=2024-01-01&before=2024-09-04'
+        irm 'http://127.0.0.1:3001/repo/metric/commitcount?name=startautomating/ezout&after=2024-01-01&before=2024-09-04'
     .EXAMPLE
     .LINK
         GitServe\Metric-GitServeCommitCount
