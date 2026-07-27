@@ -41,7 +41,6 @@
     #region Build Git Args
     [string] $OwnerRepoPair = $parsedQuery.Get('name')
     [int] $MaxLogs = $parsedQuery.Get('limit')
-    $UsingUGit = $true
 
     if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
         $ClonedRepoRoot = GetConfig.ClonedRepoRoot | Get-Item -ea 'stop'
@@ -53,7 +52,10 @@
         throw "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'"
     }
     # build git limiting args, which are common across ugit and git
-    $gitLimitArgs = @(
+    #endregion Build Git Args
+
+    [Collections.Generic.List[object]] $gitArgs = @(
+        'log'
         if( $parsedQuery.Get('since') ) {
             '--since={0}' -f $parsedQuery.Get('since')
         }
@@ -68,50 +70,20 @@
             $MaxLogs
         }
     )
-    #endregion Build Git Args
+
+    $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
 
     #region Invoke Git
-    $binGit = Get-Command -CommandType Application -Name 'git' -ea 'Stop' -TotalCount 1
-    [Collections.Generic.List[object]] $gitArgs = @(
-        '-C'
-        $RepoPath
-        'log'
-        $gitLimitArgs
-        # $OwnerRoot # if not using provider, declare path
-    )
-
-    $gitArgs
-    | Join-String -sep ' ' -op 'Clone: invoke ''git'' => '
-    | Write-Verbose
-
-    if ( $UsingUGit ) {
-        #  use regular git or ugit
-        # note: this is because ugit doesn't support '-C' flag in the same order. ugit requires the swapped order.
-        try {
-            Push-Location $RepoPath -ea 'stop' -StackName 'GitServe.Get-Log'
-            $gitArgs = @(
-                'log'
-                $gitLimitArgs
-            )
-            $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
-
-            $results = & 'Ugit\git' @gitArgs
+    try {
+        $results = Invoke-GitServeUGit -FromPath $RepoPath -GitArgList $gitArgs
             | Select-Object -Property $SelectProperty
-        }
-        catch {
-            "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
-            | Write-Host
-            "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
-            | Write-Error
-        }
-        finally {
-            Pop-Location -ea 'ignore' -StackName 'GitServe.Get-Log'
-        }
-        return $results
     }
-
-    # regular git
-    $results = & $binGit @gitArgs
+    catch {
+        "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
+        | Write-Host
+        "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
+        | Write-Error
+    }
     return $results
     #endregion Invoke Git
 }
