@@ -1,6 +1,6 @@
 <#
 .Description
-    Module built on: 2026-07-13 16:04:01Z
+    Module built on: 2026-07-27 09:27:23Z
 #>
 
 #region Module.Before.ps1
@@ -56,99 +56,6 @@ function Clear-ResponseCacheKey {
     "Clear-ResponseCache -Key '${KeyName}'" | Write-Verbose
     $cache = $Script:ResponseCache
     $cache.Remove( $KeyName ) # safe for missing keys
-}
-
-
-
-function InvokeCli.Git.Log { # or FromDictionaryEntry
-    <#
-    .SYNOPSIS
-        (internal) Invoke native git clone, and create folders based on the url: '/<root>/<owner>/<repo>'
-    .DESCRIPTION
-        ClonedRepoRoot - '/cloned-repos' will clone to '/cloned-repos/owner/repository'
-    .EXAMPLE
-        InvokeCli.Git.CloneRepo -CloneUrl 'https://github.com/owner/repo.git'
-    .EXAMPLE
-        # change root and print debug info
-        InvokeCli.Git.CloneRepo -CloneUrl 'https://github.com/owner/repo.git' -Path '/cloned-repos' -PSHost -Verbose
-    .LINK
-        GitServe\Invoke-GitClone
-    .LINK
-        GitServe\GitServe.Clone
-    #>
-    [CmdletBinding()]
-    param(
-        [Alias('Url')]
-        [Parameter(Mandatory)]
-        [string] $CloneUrl,
-
-        # root directory to clone under. '/cloned-repos' would clone to '/cloned-repos/owner/repository'
-        [Alias('Path', 'PSPath')]
-        [string] $ClonedRepoRoot,
-
-        # Write to host
-        [Alias('VerboseOutput')]
-        [switch] $PSHost
-    )
-
-    $OriginalPath = Get-Item '.'
-    if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
-        $ClonedRepoRoot = GetConfig.ClonedRepoRoot | Get-Item -ea 'stop'
-        'Path: {0}' -f ( $ClonedRepoRoot ) | Write-Verbose
-    }
-
-    $uriPrefix, $OwnerName, $RepoName = $CloneUrl -split '/', -3
-    $RepoName = $RepoName -replace '\.git$'
-
-    <#
-    example uri output values:
-        > $cloneUrl = 'https://github.com/BurntSushi/ripgrep.git'
-        > $uriPrefix, $OwnerName, $RepoName
-        https://github.com, BurntSushi, ripgrep.git
-    #>
-
-    [ordered]@{ OwnerName = $OwnerName; RepoName = $RepoName; UriPrefix = $UriPrefix ; CloneUrl = $CloneUrl; ClonedRepoRoot = $ClonedRepoRoot }
-        | ConvertTo-Json -Compress -depth 2
-        | Write-Verbose
-
-    if( [String]::IsNullOrWhiteSpace( $OwnerName ) ) {
-        throw "OwnerName from the CloneUrl is blank!"
-    }
-    $OwnerRoot = Join-Path $ClonedRepoRoot $OwnerName
-    if( -not ( Test-Path $OwnerRoot ) ) {
-        $OwnerRoot = New-Item -ItemType Directory -Path $OwnerRoot -ea 'stop'
-    }
-
-    Set-Location -Path $OwnerRoot -ea 'stop' # note(threading): May need to remove provider use for threading
-
-    # Run real git with args:
-    #region Invoke Real Git Args
-    $binGit = Get-Command -CommandType Application -Name 'git' -ea 'Stop' -TotalCount 1
-    [Collections.Generic.List[object]] $gitArgs = @(
-        'clone'
-        $CloneUrl
-        # $OwnerRoot # if not using provider, declare path
-    )
-
-        if( -not (Test-Path (Join-Path $OwnerRoot $OwnerName)) ) {
-        $gitArgs
-            | Join-String -sep ' ' -op 'Clone: invoke ''git'' => '
-            | Write-Verbose
-
-        $results = & $binGit @gitArgs
-        if( $PSHost ) {
-            $Results | Write-Host
-        }
-        # $results
-    } else {
-        if( $PSHost ) {
-        "Directory '${ownerName}' already exists. Skipping clone."
-            | Write-Host -fg 'Green'
-        }
-    }
-
-    Set-Location -Path $OriginalPath
-    #endregion Invoke Real Git Args
 }
 
 function Get-ResponseCache {
@@ -279,34 +186,31 @@ function InvokeCli.Git.LsTree.Files {
     param(
         # root directory to clone under. '/cloned-repos' would clone to '/cloned-repos/owner/repository'
         [Parameter(Mandatory)]
-        [Alias('Path', 'PSPath', 'GitRepo', 'RepoRoot')]
+        [Alias('Path', 'PSPath', 'GitRepo', 'RepoRoot', 'FromPath')]
         [string] $GitRepositoryPath,
 
         # default uses 'ls-tree --full-tree'
         [switch] $WithoutIncludeFullTree
     )
-
-    # Run real git with args:
-    #region Invoke Real Git Args
-    $binGit = Get-Command -CommandType Application -Name 'git' -ea 'Stop' -TotalCount 1
-    [Collections.Generic.List[object]] $gitArgs = @(
-        '-C'
-        (Get-Item -ea 'stop' $GitRepositoryPath)
-        'ls-tree'
-        '-r'
-        'HEAD'
-        if( $WithoutIncludeFullTree ) { '--full-tree' }
-        '--name-only'
-    )
-
+    #region Invoke RealGit
     $gitArgs
         | Join-String -sep ' ' -op 'invoke ''git'' => '
         | Write-Verbose
 
-    $results = & $binGit @gitArgs
+    $realGit_splat = @{
+        FromPath = Get-Item -ea 'stop' $GitRepositoryPath
+        GitArgList = @(
+            'ls-tree'
+            '-r'
+            'HEAD'
+            if( $WithoutIncludeFullTree ) { '--full-tree' }
+            '--name-only'
+        )
+    }
 
+    $results = GitServe.Invoke-RealGit @realGit_splat
     $results
-    #endregion Invoke Real Git Args
+    #endregion Invoke RealGit
 }
 
 function OnRemoveModule_Handler {
@@ -1027,6 +931,229 @@ function Invoke-GitServeClone {
     # }
 }
 
+
+# Cache the binary lookup because it's slow
+$script:BinRealGit = Get-Command -CommandType Application -Name 'git' -ea 'Continue' -TotalCount 1
+
+function Invoke-GitServeUGit {
+    <#
+    .synopsis
+        always invokes UGit command
+    .notes
+        Use-Git requires -C param to be last, rather than first. ie:
+
+            > Use-Git -GitArgument @( 'log', '-n', '3', '-C', (gi '.' ) )
+    .example
+        # RealGit vs UGit, same syntax:
+        > GitServe.Invoke-UGit    -FromPath (gi .) -GitArgList 'log', '-n', '3'
+        > GitServe.Invoke-RealGit -FromPath (gi .) -GitArgList 'log', '-n', '3'
+    .link
+        Invoke-GitServeRealGit
+    .link
+        Invoke-GitServeUGit
+    #>
+    [Alias(
+        'GitServe.Invoke-UGit'
+    )]
+    [CmdletBinding()]
+    param(
+        # Arguments passed to real 'git'. Or any not configurable from the other parameters
+        [Alias('ArgList', 'GitArgs', 'RealGitArgs')]
+        [string[]] $GitArgList,
+
+        # What path will you execute from? This saves you the overhead of changing directories
+        [Alias('Path', 'PSPath', 'GitRepositoryPath', 'RepoPath')]
+        [Parameter()]
+        [string] $FromPath, # = '.',
+
+        # view the commandline that *would* be ran, but don't actually run it.
+        [Alias('TestOnly', 'WhatIf')]
+        [switch] $DryRun,
+
+        # for git argument: '--since=<string>'
+        [string] $Since,
+
+        # for git argument: '--before=<string>'
+        [string] $Before,
+
+        # for git argument: '--after=<string>'
+        [string] $After,
+
+        # Like -DryRun but returns the arguments instead of printing them
+        [Alias('PassThru')]
+        [switch] $OutputArgAsList,
+
+        # Write to host
+        [Alias('VerboseOutput')]
+        [switch] $PSHost
+    )
+    begin {
+        #region collect UGit args
+        $binGit = $script:BinRealGit
+        [Collections.Generic.List[Object]] $gitArgs = @()
+
+        if( $GitArgList ) {
+            # any extra parsing or filtering of user args?
+            $gitArgs.AddRange( @( $GitArgList ) )
+        }
+        if( -not [string]::IsNullOrWhiteSpace( $Since ) ) {
+            $gitArgs.Add( ( '--since="{0}"' -f $Since ))
+        }
+        if( -not [string]::IsNullOrWhiteSpace( $Before ) ) {
+            $gitArgs.Add( ( '--before="{0}"' -f $Before ))
+        }
+        if( -not [string]::IsNullOrWhiteSpace( $After ) ) {
+            $gitArgs.Add( ( '--after="{0}"' -f $After ))
+        }
+        # note: 'git' and 'ugit' requires you to place the '-C' args in a different location. The rest of the git args are normal between both.
+        if( $PSBoundParameters.ContainsKey('FromPath')) {
+            $absolutePath = Get-Item $FromPath -ea 'stop'
+            $gitArgs.AddRange( @('-C', $absolutePath.FullName ) )
+        }
+        #endregion collect UGit args
+    }
+    process { }
+    end {
+        #region invoke UseGit
+        "enter => '$( $MyInvocation.MyCommand.Name )'" | Write-Debug
+
+        if( $OutputArgAsList ) {
+            return @( $GitArgs )
+        }
+        if( $DryRun ) {
+            $gitArgs
+            | Join-String -sep ' ' -op 'Calling UseGit => git '
+            | Write-host -fg 'SlateGray'
+            return
+        }
+
+        # option to always log to host
+        if( $PSHost ) {
+            $gitArgs
+            | Join-String -sep ' ' -op '  UseGit => git '
+        }
+        $gitArgs
+            | Join-String -sep ' ' -op 'Calling UseGit => git '
+            | Write-Debug
+
+        Use-Git -GitArgument $gitArgs
+        #endregion invoke UseGit
+    }
+}
+function Invoke-GitServeRealGit {
+    <#
+    .synopsis
+        always invokes native/real git
+    .NOTES
+        future includes an ignore redirect like 2>$null ? Or move that to a special command that invokes this
+    .example
+        # DryRun: Do not actually invoke git. Just print the arguments that would be
+        > GitServe.Invoke-RealGit -DryRun -FromPath 'C:\data\myGit\GitServed' -ArgList 'log', '-n', '2'
+    .example
+        > GitServe.Invoke-RealGit -FromPath 'C:\data\myGit\GitServed' -ArgList 'log', '-n', '2'
+    .example
+        # example: list HEAD files
+        # the original command was: git.exe -C (gi '.') ls-tree -r HEAD --name-only
+        GitServe.Invoke-RealGit -Path '.' -GitArgList 'ls-tree', '-r', 'HEAD', '--name-only'
+    .link
+        Invoke-GitServeRealGit
+    .link
+        Invoke-GitServeUGit
+    #>
+    [Alias(
+        'GitServe.Invoke-RealGit'
+    )]
+    [CmdletBinding()]
+    param(
+        # Arguments passed to real 'git'. Or any not configurable from the other parameters
+        [Alias('ArgList', 'GitArgs', 'RealGitArgs')]
+        [string[]] $GitArgList,
+
+        # What path will you execute from? This saves you the overhead of changing directories
+        [Alias('Path', 'PSPath', 'GitRepositoryPath', 'RepoPath')]
+        [Parameter()]
+        [string] $FromPath, # = '.',
+
+        # view the commandline that *would* be ran, but don't actually run it.
+        [Alias('TestOnly', 'WhatIf')]
+        [switch] $DryRun,
+
+        # for git argument: '--since=<string>'
+        [string] $Since,
+
+        # for git argument: '--before=<string>'
+        [string] $Before,
+
+        # for git argument: '--after=<string>'
+        [string] $After,
+
+        # Like -DryRun but returns the arguments instead of printing them
+        [Alias('PassThru')]
+        [switch] $OutputArgAsList,
+
+        # Write to host
+        [Alias('VerboseOutput')]
+        [switch] $PSHost
+    )
+    begin {
+        #region collect RealGit args
+        $binGit = $script:BinRealGit
+        [Collections.Generic.List[Object]] $gitArgs = @()
+
+        # note: 'git' and 'ugit' requires you to place the '-C' args in a different location. The rest of the git args are normal between both.
+        if( $PSBoundParameters.ContainsKey('FromPath')) {
+            $absolutePath = Get-Item $FromPath -ea 'stop'
+            $gitArgs.AddRange( @('-C', $absolutePath.FullName ) )
+        }
+
+        if( $GitArgList ) {
+            # any extra parsing or filtering of user args?
+            $gitArgs.AddRange( @( $GitArgList ) )
+        }
+
+        if( -not [string]::IsNullOrWhiteSpace( $Since ) ) {
+            $gitArgs.Add( ( '--since="{0}"' -f $Since ))
+        }
+        if( -not [string]::IsNullOrWhiteSpace( $Before ) ) {
+            $gitArgs.Add( ( '--before="{0}"' -f $Before ))
+        }
+        if( -not [string]::IsNullOrWhiteSpace( $After ) ) {
+            $gitArgs.Add( ( '--after="{0}"' -f $After ))
+        }
+        #endregion collect RealGit args
+    }
+    process { }
+    end {
+        #region invoke RealGit
+        "enter => '$( $MyInvocation.MyCommand.Name )'" | Write-Debug
+
+        if( $OutputArgAsList ) {
+            return @( $GitArgs )
+        }
+        if( $DryRun ) {
+            $gitArgs
+            | Join-String -sep ' ' -op 'Calling RealGit => git '
+            | Write-host -fg 'SlateGray'
+
+            return
+        }
+
+        # option to always log to host
+        if( $PSHost ) {
+            $gitArgs
+            | Join-String -sep ' ' -op '  RealGit => git '
+        }
+        $gitArgs
+            | Join-String -sep ' ' -op 'Calling RealGit => git '
+            | Write-Debug
+
+        $results = & $binGit @gitArgs
+        $results
+        # captures and emit so that the future is easily cache-able, and may redirect stderr to null
+        #endregion invoke RealGit
+    }
+}
+
 function Metric-GitServeLanguageCount {
     <#
     .SYNOPSIS
@@ -1583,7 +1710,6 @@ function /repo/log {
     #region Build Git Args
     [string] $OwnerRepoPair = $parsedQuery.Get('name')
     [int] $MaxLogs = $parsedQuery.Get('limit')
-    $UsingUGit = $true
 
     if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
         $ClonedRepoRoot = GetConfig.ClonedRepoRoot | Get-Item -ea 'stop'
@@ -1595,7 +1721,10 @@ function /repo/log {
         throw "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'"
     }
     # build git limiting args, which are common across ugit and git
-    $gitLimitArgs = @(
+    #endregion Build Git Args
+
+    [Collections.Generic.List[object]] $gitArgs = @(
+        'log'
         if( $parsedQuery.Get('since') ) {
             '--since={0}' -f $parsedQuery.Get('since')
         }
@@ -1610,50 +1739,20 @@ function /repo/log {
             $MaxLogs
         }
     )
-    #endregion Build Git Args
+
+    $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
 
     #region Invoke Git
-    $binGit = Get-Command -CommandType Application -Name 'git' -ea 'Stop' -TotalCount 1
-    [Collections.Generic.List[object]] $gitArgs = @(
-        '-C'
-        $RepoPath
-        'log'
-        $gitLimitArgs
-        # $OwnerRoot # if not using provider, declare path
-    )
-
-    $gitArgs
-    | Join-String -sep ' ' -op 'Clone: invoke ''git'' => '
-    | Write-Verbose
-
-    if ( $UsingUGit ) {
-        #  use regular git or ugit
-        # note: this is because ugit doesn't support '-C' flag in the same order. ugit requires the swapped order.
-        try {
-            Push-Location $RepoPath -ea 'stop' -StackName 'GitServe.Get-Log'
-            $gitArgs = @(
-                'log'
-                $gitLimitArgs
-            )
-            $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
-
-            $results = & 'Ugit\git' @gitArgs
+    try {
+        $results = Invoke-GitServeUGit -FromPath $RepoPath -GitArgList $gitArgs
             | Select-Object -Property $SelectProperty
-        }
-        catch {
-            "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
-            | Write-Host
-            "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
-            | Write-Error
-        }
-        finally {
-            Pop-Location -ea 'ignore' -StackName 'GitServe.Get-Log'
-        }
-        return $results
     }
-
-    # regular git
-    $results = & $binGit @gitArgs
+    catch {
+        "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
+        | Write-Host
+        "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
+        | Write-Error
+    }
     return $results
     #endregion Invoke Git
 }

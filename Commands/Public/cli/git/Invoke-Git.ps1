@@ -38,15 +38,12 @@ function Invoke-GitServeUGit {
         [switch] $DryRun,
 
         # for git argument: '--since=<string>'
-        [ValidateScript({throw 'nyi'})]
         [string] $Since,
 
         # for git argument: '--before=<string>'
-        [ValidateScript({throw 'nyi'})]
         [string] $Before,
 
         # for git argument: '--after=<string>'
-        [ValidateScript({throw 'nyi'})]
         [string] $After,
 
         # Like -DryRun but returns the arguments instead of printing them
@@ -66,7 +63,15 @@ function Invoke-GitServeUGit {
             # any extra parsing or filtering of user args?
             $gitArgs.AddRange( @( $GitArgList ) )
         }
-
+        if( -not [string]::IsNullOrWhiteSpace( $Since ) ) {
+            $gitArgs.Add( ( '--since="{0}"' -f $Since ))
+        }
+        if( -not [string]::IsNullOrWhiteSpace( $Before ) ) {
+            $gitArgs.Add( ( '--before="{0}"' -f $Before ))
+        }
+        if( -not [string]::IsNullOrWhiteSpace( $After ) ) {
+            $gitArgs.Add( ( '--after="{0}"' -f $After ))
+        }
         # note: 'git' and 'ugit' requires you to place the '-C' args in a different location. The rest of the git args are normal between both.
         if( $PSBoundParameters.ContainsKey('FromPath')) {
             $absolutePath = Get-Item $FromPath -ea 'stop'
@@ -141,15 +146,12 @@ function Invoke-GitServeRealGit {
         [switch] $DryRun,
 
         # for git argument: '--since=<string>'
-        [ValidateScript({throw 'nyi'})]
         [string] $Since,
 
         # for git argument: '--before=<string>'
-        [ValidateScript({throw 'nyi'})]
         [string] $Before,
 
         # for git argument: '--after=<string>'
-        [ValidateScript({throw 'nyi'})]
         [string] $After,
 
         # Like -DryRun but returns the arguments instead of printing them
@@ -174,6 +176,16 @@ function Invoke-GitServeRealGit {
         if( $GitArgList ) {
             # any extra parsing or filtering of user args?
             $gitArgs.AddRange( @( $GitArgList ) )
+        }
+
+        if( -not [string]::IsNullOrWhiteSpace( $Since ) ) {
+            $gitArgs.Add( ( '--since="{0}"' -f $Since ))
+        }
+        if( -not [string]::IsNullOrWhiteSpace( $Before ) ) {
+            $gitArgs.Add( ( '--before="{0}"' -f $Before ))
+        }
+        if( -not [string]::IsNullOrWhiteSpace( $After ) ) {
+            $gitArgs.Add( ( '--after="{0}"' -f $After ))
         }
         #endregion collect RealGit args
     }
