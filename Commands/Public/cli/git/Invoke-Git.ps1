@@ -68,7 +68,11 @@ function Invoke-GitServeRealGit {
 
         # Like -DryRun but returns the arguments instead of printing them
         [Alias('PassThru')]
-        [switch] $OutputArgAsList
+        [switch] $OutputArgAsList,
+
+        # Write to host
+        [Alias('VerboseOutput')]
+        [switch] $PSHost
     )
     begin {
         #region collect RealGit args
@@ -102,6 +106,11 @@ function Invoke-GitServeRealGit {
             return
         }
 
+        # option to always log to host
+        if( $PSHost ) {
+            $gitArgs
+            | Join-String -sep ' ' -op '  RealGit => git '
+        }
         $gitArgs
             | Join-String -sep ' ' -op 'Calling RealGit => git '
             | Write-Debug
