@@ -42,11 +42,12 @@
     param(
         # a request from the listen server
         [Parameter(Mandatory)]
-        [Net.HttpListenerRequest] $Request
+        [object] $Request
     )
+
+
     $endpointLabel = '/repo/metric/commit'
-    [Collections.Specialized.NameValueCollection] $parsedQuery =
-        [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
+    [Collections.Specialized.NameValueCollection] $parsedQuery = ParseQueryString $Request
 
     [string] $OwnerRepoPair = $parsedQuery.Get('name')
     [string] $Period = $parsedQuery.Get('period') ?? 'year'

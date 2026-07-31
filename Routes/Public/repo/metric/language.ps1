@@ -17,12 +17,11 @@
     param(
         # a request from the listen server
         [Parameter(Mandatory)]
-        [Net.HttpListenerRequest] $Request
+        [object] $Request
     )
     $endpointLabel = '/repo/metric/language'
-    [Collections.Specialized.NameValueCollection] $parsedQuery =
-        [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
 
+    [Collections.Specialized.NameValueCollection] $parsedQuery = ParseQueryString $Request
     [string] $OwnerRepoPair = $parsedQuery.Get('name')
 
     if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {

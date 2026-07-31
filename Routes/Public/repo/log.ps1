@@ -32,11 +32,10 @@
     param(
         # a request from the listen server
         [Parameter(Mandatory)]
-        [Net.HttpListenerRequest] $Request
+        [object] $Request
     )
     $endpointLabel = '/repo/log'
-    [Collections.Specialized.NameValueCollection] $parsedQuery =
-        [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
+    [Collections.Specialized.NameValueCollection] $parsedQuery = ParseQueryString $Request
 
     #region Build Git Args
     [string] $OwnerRepoPair = $parsedQuery.Get('name')

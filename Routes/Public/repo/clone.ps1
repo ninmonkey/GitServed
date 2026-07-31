@@ -10,12 +10,13 @@
     #>
     [OutputType( 'GitServe.Route.Repo.Clone' )]
     param(
-        [Net.HttpListenerRequest] $Request
+        [object] $Request
     )
+
+    [Collections.Specialized.NameValueCollection] $parsedQuery = ParseQueryString $Request
 
     $Request | ConvertTo-Json -depth 1 -wa ignore | Write-Debug
 
-    $parsedQuery = [Web.HttpUtility]::ParseQueryString( $Request.Url.Query.ToLower() )
     [string] $gitUrl = @( $parsedQuery.GetValues('url') )[0]
 
     InvokeCli.Git.CloneRepo -Url $gitUrl -path (GetConfig.ClonedRepoRoot -First)
