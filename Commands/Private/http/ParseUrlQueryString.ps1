@@ -1,4 +1,5 @@
-﻿function ParseQueryString {
+﻿
+function Convert-GitServeQueryString {
     <#
     .SYNOPSIS
         (internal) Parse request query strings. returns the named value collection
@@ -6,6 +7,10 @@
         You can pass a raw Url or an HttpListenerRequest instance
         This does not use [ValueFromPipelineByPropertyName]
     #>
+    [Alias(
+        'ParseQueryString',
+        'GitServe.Convert.RequestQueryString'
+    )]
     [OutputType(
         [System.Collections.Specialized.NameValueCollection]
     )]
