@@ -1,5 +1,4 @@
-﻿
-function Convert-GitServeQueryString {
+﻿function Convert-GitServeQueryString {
     <#
     .SYNOPSIS
         (internal) Parse request query strings. returns the named value collection
@@ -33,7 +32,7 @@ function Convert-GitServeQueryString {
             [Collections.Specialized.NameValueCollection] $keyCollection =
                 [Web.HttpUtility]::ParseQueryString( $Listener.Url.Query.ToLower() )
 
-            return $keyCollection
+            return ,$keyCollection
         }
 
         if( $ListenerOrUrl -is [System.Uri]) {
@@ -41,7 +40,7 @@ function Convert-GitServeQueryString {
             [Collections.Specialized.NameValueCollection] $keyCollection =
                 [Web.HttpUtility]::ParseQueryString( $Url.Query.ToLower() )
 
-            return $keyCollection
+            return ,$keyCollection
         }
 
         throw "Unhandled Object type! $( ( $ListenerOrUrl )?.GetType() ) "    }
