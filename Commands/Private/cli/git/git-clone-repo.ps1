@@ -68,7 +68,7 @@
         # $OwnerRoot # if not using provider, declare path
     )
 
-        if( -not (Test-Path (Join-Path $OwnerRoot $OwnerName)) ) {
+    if( -not (Test-Path (Join-Path $OwnerRoot $OwnerName)) ) {
         $gitArgs
             | Join-String -sep ' ' -op 'Clone: invoke ''git'' => '
             | Write-Verbose
