@@ -57,8 +57,9 @@ function Get-GitServeDatePaginationKey {
 
         # Optional ending date. If set, this will return an array of all steps until the final one.
         # otherwise, ending is the default net first date step
+        [Alias('UntilDate')]
         [Parameter()]
-        [datetime] $UntilDate
+        [datetime] $MaxDate
     )
     [Collections.Generic.List[Object]] $allKeys = @()
 
@@ -75,14 +76,14 @@ function Get-GitServeDatePaginationKey {
             Period      = $Period
         }
 
-        if( $null -ne $UntilDate ) {
-            $splat_nextPeriod['MaxDate'] = $UntilDate
+        if( $null -ne $MaxDate ) {
+            $splat_nextPeriod['MaxDate'] = $MaxDate
         }
 
         # initial value was: nextMonthDate_firstOfMonth
         $nextPeriod = GitServe.Get-NextDatePeriod @splat_nextPeriod
         if( $null -eq $nextPeriod ) {
-            Write-Error "GitServe.Get-DatePaginationKey: Unhandled Period: ${period} ! StartPeriod: ${StartPeriod}, End: ${UntilDate}, StartDate: ${StartDate})"
+            Write-Error "GitServe.Get-DatePaginationKey: Unhandled Period: ${period} ! StartPeriod: ${StartPeriod}, End: ${MaxDate}, StartDate: ${StartDate})"
             break
         }
 

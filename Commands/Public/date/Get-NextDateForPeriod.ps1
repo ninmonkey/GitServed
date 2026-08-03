@@ -25,6 +25,7 @@
         [string] $Period = 'month',
 
         # optionally truncate max values when they go past MaxDate
+        [Alias('UntilDate')]
         [Parameter(Position = 2)]
         [datetime] $MaxDate,
 
@@ -58,8 +59,8 @@
     }
 
     # inputs are invalid, so throw
-    if( $maxDate -le $curDate ) {
-        throw "Get-GitServeNextDateForPeriod: MaxDate cannot be less than CurDate!"
+    if( $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('MaxDate') -and  $maxDate -le $CurrentDate ) {
+        throw "Get-GitServeNextDateForPeriod: MaxDate cannot be less than initial CurDate! ( Max: ${MaxDate}, Current: ${CurrentDate} )"
     }
 
     # if non-null, but still out of bounds: wrap within bounds
