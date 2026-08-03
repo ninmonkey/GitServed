@@ -52,3 +52,34 @@ Describe 'Get-NextDatePeriod' {
         }
     }
 }
+Describe 'Get-DatePaginationKey' {
+    Context 'Enumerate Periods' {
+        It 'Current: <CurrentDate>, Period: <Period> is <ExpectedStr>' -ForEach @(
+            @{
+                CurrentDate =  (Date.FromStr '2026-01-01')
+                Period      = 'month'
+                MaxDate = Date.FromStr '2026-04-01'
+                # ExpectedStr = @(
+                #     '2026-04-04'
+                # )
+            }
+        ) {
+            $datePagination_splat = @{
+                CurrentDate = $CurrentDate
+                Period      = $Period
+            }
+            if( $null -ne $MaxDate ) {
+                $datePagination_splat['MaxDate'] = $MaxDate
+            }
+
+            $keyList = GitServe.Get-DatePaginationKey @datePagination_splat
+            $keyList | Write-Host -bg 'salmon'
+            # clean(future): use the newer should verb syntax
+            # $newDate = GitServe.Get-NextDatePeriod @datePeriod_splat
+            # Date.Str $newDate | Should -Be $ExpectedStr
+
+            Set-ItResult -Inconclusive -Because 'nyi'
+
+        }
+    }
+}
