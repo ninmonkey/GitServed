@@ -57,29 +57,36 @@
         }
         default { throw "Unhandled $Period" }
     }
+    $NextDate | Write-Host -bg blue
 
     # inputs are invalid, so throw
     if( $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('MaxDate') -and  $maxDate -le $CurrentDate ) {
         throw "Get-GitServeNextDateForPeriod: MaxDate cannot be less than initial CurDate! ( Max: ${MaxDate}, Current: ${CurrentDate} )"
     }
 
-    # if non-null, but still out of bounds: wrap within bounds
-    if( $nextDate -ge $maxDate ) {
-        $nextDate = $maxDate # [Math]::Min
-    }
-    # if null, do not return a key. but do not throw since  inputs were valid.
-    if( $null -eq $NextDate ) {
-        Write-Warning 'Get-GitServeNextDateForPeriod: NextDate was null for input'
-        return
+    # if nextDate is non-null, but still out of bounds: wrap within bounds
+    # ( only when MaxDate was defined )
+    if(
+        $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('MaxDate') -and
+        $nextDate -ge $maxDate
+    ) {
+        $nextDate = $maxDate # ie: [Math]::Min
     }
 
-    if( $DebugInfo ) {
+    if( $DebugInfo -or $null -eq $NextDate) {
         @{
             Current = $CurrentDate
             Next    = $NextDate
+            Max     = $MaxDate
             Period  = $Period
         } | ConvertTo-Json -Compress | Write-Debug -Debug
     }
+    # if null, do not return a key. but do not throw since  inputs were valid.
+    if( $null -eq $NextDate ) {
+        # Write-Warning 'Get-GitServeNextDateForPeriod: NextDate was null for input'
+        return
+    }
+
 
     # all conditions are valid
     return $nextDate
