@@ -1,6 +1,11 @@
 ﻿
 function _new-PaginationKey {
-    # standard record shape for "Get-DatePaginationKey" return value
+    <#
+    .synopsis
+        (internal) standard record shape for "Get-DatePaginationKey" return value
+    .DESCRIPTION
+        Used for git (log/shortlog) parameters and other pagination
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -11,11 +16,11 @@ function _new-PaginationKey {
     )
 
     [pscustomobject][ordered]@{
-            PSTypeName   = 'GitServe.Date.PaginationKey'
-            Since        = $Since
-            Until        = $Until
-            SinceDisplay = $Since.ToString('yyyy-MM-dd')
-            UntilDisplay = $Until.ToString('yyyy-MM-dd')
+        PSTypeName   = 'GitServe.Date.PaginationKey'
+        Since        = $Since
+        Until        = $Until
+        SinceDisplay = $Since.ToString('yyyy-MM-dd')
+        UntilDisplay = $Until.ToString('yyyy-MM-dd')
     }
 }
 function Get-GitServeDatePaginationKey {
@@ -33,7 +38,10 @@ function Get-GitServeDatePaginationKey {
         -----                  -----                  ------------  ------------
         2026-01-01 12:00:00 AM 2026-02-01 12:00:00 AM 2026-01-01    2026-02-01
         2026-04-01 12:00:00 AM 2026-05-01 12:00:00 AM 2026-04-01    2026-05-01
-
+    .link
+        GitServe.Get-NextDatePeriod
+    .link
+        GitServe.Get-DatePaginationKey
     #>
     [Alias('GitServe.Get-DatePaginationKey')]
     [OutputType( 'GitServe.Date.PaginationKey[]' )]
@@ -55,16 +63,22 @@ function Get-GitServeDatePaginationKey {
             $StartDate.ToString('yyyy-MM-01'),
             'yyyy-MM-dd', ([cultureinfo]::GetCultureInfo('en-us')) )
 
-    [datetime] $nextMonthDate_firstOfMonth = $startDate_firstOfMonth.AddMonths( 1 )
+    [datetime] $nextMonthDate_firstOfMonth =
+        switch( $Period ) {
+            # 'day' { }
+            # 'week' {  }
+            'month' {
+                $startDate_firstOfMonth.AddMonths( 1 )
+            }
+            # 'year' { }
+            default { throw "Unhandled Period: ${period}"}
+        }
+
 
     $splat_dates = @{
         Since = $startDate_firstOfMonth
         Until = $nextMonthDate_firstOfMonth
     }
-
-
-    # finish implementing
-
     $allKeys.Add(
         ( _new-PaginationKey @splat_dates )
     )

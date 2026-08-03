@@ -1,8 +1,16 @@
-﻿function NextDateForPeriod {
+﻿function Get-GitServeNextDateForPeriod {
     <#
     .synopsis
         For a given time period, get the next closest date
+    .link
+        GitServe.Get-NextDatePeriod
+    .link
+        GitServe.Get-DatePaginationKey
     #>
+    [Alias(
+        'NextDateForPeriod',
+        'GitServe.Get-NextDatePeriod'
+    )]
     [CmdletBinding()]
     [OutputType( [datetime] )]
     param(
