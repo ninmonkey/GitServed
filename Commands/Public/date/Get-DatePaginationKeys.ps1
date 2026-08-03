@@ -51,37 +51,49 @@ function Get-GitServeDatePaginationKey {
         [Parameter(Mandatory)]
         [datetime] $StartDate,
 
-        [ValidateSet('day', 'week', 'month', 'year')]
-        [string] $Period = 'month'
+        # Amount of time to add. 1 month is the default value. Values: ( 'year' | 'month' | 'week' | 'day' | 'hour' | 'minute' | 'second' )
+        [ValidateSet( 'year', 'month', 'week', 'day', 'hour', 'minute', 'second' )]
+        [string] $Period = 'month',
+
+        # Optional ending date. If set, this will return an array of all steps until the final one.
+        # otherwise, ending is the default net first date step
+        [Parameter()]
+        [datetime] $UntilDate
     )
     [Collections.Generic.List[Object]] $allKeys = @()
-
-    if( $Period -ne 'month' ) { throw "NYI: param $Period " }
 
     [datetime] $startDate_firstOfMonth = # first day of month of the input
         [datetime]::ParseExact(
             $StartDate.ToString('yyyy-MM-01'),
             'yyyy-MM-dd', ([cultureinfo]::GetCultureInfo('en-us')) )
 
-    [datetime] $nextMonthDate_firstOfMonth =
-        switch( $Period ) {
-            # 'day' { }
-            # 'week' {  }
-            'month' {
-                $startDate_firstOfMonth.AddMonths( 1 )
-            }
-            # 'year' { }
-            default { throw "Unhandled Period: ${period}"}
+
+    $startPeriod = $startDate_firstOfMonth
+    while( $true ) {
+        $splat_nextPeriod = @{
+            CurrentDate = $startPeriod
+            Period      = $Period
         }
 
+        if( $null -ne $UntilDate ) {
+            $splat_nextPeriod['MaxDate'] = $UntilDate
+        }
 
-    $splat_dates = @{
-        Since = $startDate_firstOfMonth
-        Until = $nextMonthDate_firstOfMonth
+        # initial value was: nextMonthDate_firstOfMonth
+        $nextPeriod = GitServe.Get-NextDatePeriod @splat_nextPeriod
+        if( $null -eq $nextPeriod ) {
+            Write-Error "GitServe.Get-DatePaginationKey: Unhandled Period: ${period} ! StartPeriod: ${StartPeriod}, End: ${UntilDate}, StartDate: ${StartDate})"
+            break
+        }
+
+        $splat_dates = @{
+            Since = $startPeriod
+            Until = $nextPeriod
+        }
+        $allKeys.Add(
+            ( _new-PaginationKey @splat_dates )
+        )
+        $startPeriod = $nextPeriod
     }
-    $allKeys.Add(
-        ( _new-PaginationKey @splat_dates )
-    )
-
     return ,$allKeys
 }

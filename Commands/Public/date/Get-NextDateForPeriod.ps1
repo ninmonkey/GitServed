@@ -59,13 +59,13 @@
 
     # if null, do not return a key. but do not throw since  inputs were valid.
     if( $null -eq $NextDate ) {
-        Write-Warning 'NextDate was null for input'
+        Write-Warning 'Get-GitServeNextDateForPeriod: NextDate was null for input'
         return
     }
 
     # inputs are invalid, so throw
     if( $maxDate -le $curDate ) {
-        throw "MaxDate cannot be less than CurDate!"
+        throw "Get-GitServeNextDateForPeriod: MaxDate cannot be less than CurDate!"
     }
 
     # if non-null, but still out of bounds: wrap within bounds
@@ -78,7 +78,7 @@
             Current = $CurrentDate
             Next    = $NextDate
             Period  = $Period
-        } | ConvertTo-Json -Compress | Write-Debug
+        } | ConvertTo-Json -Compress | Write-Debug -Debug
     }
 
     # all conditions are valid
