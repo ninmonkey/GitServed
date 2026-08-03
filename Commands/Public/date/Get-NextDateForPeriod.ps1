@@ -57,12 +57,6 @@
         default { throw "Unhandled $Period" }
     }
 
-    # if null, do not return a key. but do not throw since  inputs were valid.
-    if( $null -eq $NextDate ) {
-        Write-Warning 'Get-GitServeNextDateForPeriod: NextDate was null for input'
-        return
-    }
-
     # inputs are invalid, so throw
     if( $maxDate -le $curDate ) {
         throw "Get-GitServeNextDateForPeriod: MaxDate cannot be less than CurDate!"
@@ -71,6 +65,11 @@
     # if non-null, but still out of bounds: wrap within bounds
     if( $nextDate -ge $maxDate ) {
         $nextDate = $maxDate # [Math]::Min
+    }
+    # if null, do not return a key. but do not throw since  inputs were valid.
+    if( $null -eq $NextDate ) {
+        Write-Warning 'Get-GitServeNextDateForPeriod: NextDate was null for input'
+        return
     }
 
     if( $DebugInfo ) {
