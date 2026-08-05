@@ -1,6 +1,6 @@
 <#
 .Description
-    Module built on: 2026-07-31 18:16:23Z
+    Module built on: 2026-08-05 11:11:58Z
 #>
 
 #region Module.Before.ps1
@@ -153,7 +153,7 @@ function InvokeCli.Git.CloneRepo { # or FromDictionaryEntry
         # $OwnerRoot # if not using provider, declare path
     )
 
-        if( -not (Test-Path (Join-Path $OwnerRoot $OwnerName)) ) {
+    if( -not (Test-Path (Join-Path $OwnerRoot $OwnerName)) ) {
         $gitArgs
             | Join-String -sep ' ' -op 'Clone: invoke ''git'' => '
             | Write-Verbose
@@ -892,6 +892,201 @@ function Format-GitServeRelativePath {
     }
 }
 
+
+function _new-PaginationKey {
+    <#
+    .synopsis
+        (internal) standard record shape for "Get-DatePaginationKey" return value
+    .DESCRIPTION
+        Used for git (log/shortlog) parameters and other pagination
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [datetime] $Since,
+
+        [Parameter(Mandatory)]
+        [datetime] $Until
+    )
+
+    [pscustomobject][ordered]@{
+        PSTypeName   = 'GitServe.Date.PaginationKey'
+        Since        = $Since
+        Until        = $Until
+        SinceDisplay = $Since.ToString('yyyy-MM-dd')
+        UntilDisplay = $Until.ToString('yyyy-MM-dd')
+    }
+}
+function Get-GitServeDatePaginationKey {
+    <#
+    .synopsis
+        Get keys to paginate a date range, ex: for git log filters
+    .DESCRIPTION
+    .example
+        > GitServe.Get-DatePaginationKey -StartDate (Get-Date)
+    .example
+        > GitServe.Get-DatePaginationKey -StartDate '2026-01-03'
+        > GitServe.Get-DatePaginationKey -StartDate '2026-04-01'
+
+        Since                  Until                  SinceDisplay  UntilDisplay
+        -----                  -----                  ------------  ------------
+        2026-01-01 12:00:00 AM 2026-02-01 12:00:00 AM 2026-01-01    2026-02-01
+        2026-04-01 12:00:00 AM 2026-05-01 12:00:00 AM 2026-04-01    2026-05-01
+    .link
+        GitServe.Get-NextDatePeriod
+    .link
+        GitServe.Get-DatePaginationKey
+    #>
+    [Alias('GitServe.Get-DatePaginationKey')]
+    [OutputType( 'GitServe.Date.PaginationKey[]' )]
+    [CmdletBinding()]
+    param(
+        # First date
+        [Parameter(Mandatory)]
+        [datetime] $StartDate,
+
+        # Amount of time to add. 1 month is the default value. Values: ( 'year' | 'month' | 'week' | 'day' | 'hour' | 'minute' | 'second' )
+        [ValidateSet( 'year', 'month', 'week', 'day', 'hour', 'minute', 'second' )]
+        [string] $Period = 'month',
+
+        # Optional ending date. If set, this will return an array of all steps until the final one.
+        # otherwise, ending is the default net first date step
+        [Alias('UntilDate')]
+        [Parameter()]
+        [datetime] $MaxDate
+    )
+    [Collections.Generic.List[Object]] $allKeys = @()
+
+    [datetime] $startDate_firstOfMonth = # first day of month of the input
+        [datetime]::ParseExact(
+            $StartDate.ToString('yyyy-MM-01'),
+            'yyyy-MM-dd', ([cultureinfo]::GetCultureInfo('en-us')) )
+
+
+    $startPeriod = $startDate_firstOfMonth
+    while( $true ) {
+        $splat_nextPeriod = @{
+            CurrentDate = $startPeriod
+            Period      = $Period
+        }
+
+        if( $null -ne $MaxDate ) {
+            $splat_nextPeriod['MaxDate'] = $MaxDate
+        }
+
+        # initial value was: nextMonthDate_firstOfMonth
+        $nextPeriod = GitServe.Get-NextDatePeriod @splat_nextPeriod
+        if( $null -eq $nextPeriod ) {
+            Write-Error "GitServe.Get-DatePaginationKey: Unhandled Period: ${period} ! StartPeriod: ${StartPeriod}, End: ${MaxDate}, StartDate: ${StartDate})"
+            break
+        }
+
+        $splat_dates = @{
+            Since = $startPeriod
+            Until = $nextPeriod
+        }
+        $allKeys.Add(
+            ( _new-PaginationKey @splat_dates )
+        )
+        $startPeriod = $nextPeriod
+    }
+    return ,$allKeys
+}
+
+function Get-GitServeNextDateForPeriod {
+    <#
+    .synopsis
+        For a given time period, get the next closest date
+    .link
+        GitServe.Get-NextDatePeriod
+    .link
+        GitServe.Get-DatePaginationKey
+    #>
+    [Alias(
+        'NextDateForPeriod',
+        'GitServe.Get-NextDatePeriod'
+    )]
+    [CmdletBinding()]
+    [OutputType( [datetime] )]
+    param(
+        # Relative this date
+        [ValidateNotNull()]
+        [Parameter(mandatory, position = 0 )]
+        [datetime] $CurrentDate,
+
+        # Amount of time to add: ( 'year' | 'month' | 'week' | 'day' | 'hour' | 'minute' | 'second' )
+        [Parameter(Mandatory, position = 1)]
+        [ValidateSet( 'year', 'month', 'week', 'day', 'hour', 'minute', 'second' )]
+        [string] $Period = 'month',
+
+        # optionally truncate max values when they go past MaxDate
+        [Alias('UntilDate')]
+        [Parameter(Position = 2)]
+        [datetime] $MaxDate,
+
+        # -Debug except it skips serialization when not being used
+        [switch] $DebugInfo
+    )
+
+    $NextDate = switch( $Period ) {
+        'year' {
+            $CurrentDate.AddYears( 1 )
+        }
+        'month' {
+            $CurrentDate.AddMonths( 1 )
+        }
+        'week' {
+            $CurrentDate.AddDays( 7 )
+        }
+        'day' {
+            $CurrentDate.AddDays( 1 )
+        }
+        'hour' {
+            $CurrentDate.AddHours( 1 )
+        }
+        'minute' {
+            $CurrentDate.AddMinutes( 1 )
+        }
+        'second' {
+            $CurrentDate.AddSeconds( 1 )
+        }
+        default { throw "Unhandled $Period" }
+    }
+
+    # inputs are invalid, so throw
+    if( $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('MaxDate') -and  $maxDate -le $CurrentDate ) {
+        throw "Get-GitServeNextDateForPeriod: MaxDate cannot be less than initial CurDate! ( Max: ${MaxDate}, Current: ${CurrentDate} )"
+    }
+
+    # if nextDate is non-null, but still out of bounds: wrap within bounds
+    # ( only when MaxDate was defined )
+    if(
+        $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('MaxDate') -and
+        $nextDate -ge $maxDate
+    ) {
+        $nextDate = $maxDate # ie: [Math]::Min
+    }
+
+    if( ( $null -eq $NextDate ) -or $DebugInfo) {
+    # $NextDate | Write-Host -bg blue
+        @{
+            Current = $CurrentDate
+            Next    = $NextDate
+            Max     = $MaxDate
+            Period  = $Period
+        } | ConvertTo-Json -Compress | Write-Debug -Debug
+    }
+    # if null, do not return a key. but do not throw since  inputs were valid.
+    if( $null -eq $NextDate ) {
+        # Write-Warning 'Get-GitServeNextDateForPeriod: NextDate was null for input'
+        return $null
+    }
+
+
+    # all conditions are valid
+    return $nextDate
+}
+
 function GetConfig.ClonedRepoRoot {
     <#
     .synopsis
@@ -1438,6 +1633,96 @@ function SetConfig.ClonedRepoRoot {
 
     # Clear cached repos since the path[s] have changed
     Clear-ResponseCacheKey -Key '/repo/list' -Verbose:$false
+}
+
+function /repo/author {
+    <#
+    .SYNOPSIS
+        Return distinct list of authors in a time period
+    .DESCRIPTION
+    Query Parameters:
+        name   - Short repo name like "BurntSushi/ripgrep"
+        since  - "2.months"
+        after  - '2024-01-01'
+        before - '2024-01-01'
+    .EXAMPLE
+        irm 'http://127.0.0.1:3001/repo/author?name=BurntSushi/ripgrep&period=2.months'
+    #>
+    [OutputType( 'GitServe.Route.Repo.Author' )]
+    [Alias('GitServe.Route.Author')]
+    [CmdletBinding()]
+    param(
+        # a request from the listen server
+        [Parameter(Mandatory)]
+        [object] $Request
+
+    )
+    $endpointLabel = '/repo/author'
+    [Collections.Specialized.NameValueCollection] $parsedQuery = ParseQueryString $Request
+
+    [string] $OwnerRepoPair = $parsedQuery.Get('name')
+    [bool] $Using_ByEmail   = $parsedQuery.Get('ByEmail') ??  $false
+    [string] $Period        = $parsedQuery.Get('period') ?? 'year'
+
+    if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
+        $ClonedRepoRoot = GetConfig.ClonedRepoRoot | Get-Item -ea 'stop'
+        'RootPath: {0}' -f ( $ClonedRepoRoot ) | Write-Verbose
+    }
+
+    #region Build Git Args
+    $RepoPath = Join-Path $ClonedRepoRoot $OwnerRepoPair # todo(sanitization): use a better escape and match method
+    if( ! ( Test-Path $RepoPath )) {
+        "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'" | Write-Host -fore red
+        throw "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'"
+    }
+
+    [Collections.Generic.List[object]] $gitArgs = @(
+        'log'
+        if( $Using_ByEmail ) {
+            '--format="%ae"' # if email
+        } else {
+            '--format="%an"'
+        }
+    )
+
+    $RealGit_splat = @{
+        FromPath = $RepoPath
+        GitArgList = $gitArgs
+    }
+    if( $parsedQuery.Get('since') ) {
+        $RealGit_splat['since'] = $parsedQuery.Get('since')
+    }
+    if( $parsedQuery.Get('before') ) {
+        $RealGit_splat['before'] = $parsedQuery.Get('before')
+    }
+    if( $parsedQuery.Get('after') ) {
+        $RealGit_splat['after'] = $parsedQuery.Get('after')
+    }
+
+    #endregion Build Git Args
+    #region Invoke Git Args
+    try {
+
+        [object[]] $results = Invoke-GitServeRealGit @RealGit_splat
+            | Sort-Object -Unique
+            # | Select-Object -Property $SelectProperty
+            # | GitServe.Metric.CommitCount -Period $Period
+    }
+    catch {
+        "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
+        | Write-Host
+        "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
+        | Write-Error
+    }
+    finally { }
+
+    return [pscustomobject]@{
+        PSTypeName = 'GitServe.Route.Repo.Author'
+        Authors = , @( $results )
+
+    }
+    # return ,$results
+    #endregion Invoke Git Args
 }
 
 function /cache/clear {
