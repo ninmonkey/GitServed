@@ -57,7 +57,6 @@
         }
         default { throw "Unhandled $Period" }
     }
-    $NextDate | Write-Host -bg blue
 
     # inputs are invalid, so throw
     if( $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('MaxDate') -and  $maxDate -le $CurrentDate ) {
@@ -73,7 +72,8 @@
         $nextDate = $maxDate # ie: [Math]::Min
     }
 
-    if( $DebugInfo -or $null -eq $NextDate) {
+    if( ( $null -eq $NextDate ) -or $DebugInfo) {
+    # $NextDate | Write-Host -bg blue
         @{
             Current = $CurrentDate
             Next    = $NextDate
@@ -84,7 +84,7 @@
     # if null, do not return a key. but do not throw since  inputs were valid.
     if( $null -eq $NextDate ) {
         # Write-Warning 'Get-GitServeNextDateForPeriod: NextDate was null for input'
-        return
+        return $null
     }
 
 
