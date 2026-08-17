@@ -59,7 +59,16 @@ function Invoke-GitServeUGit {
         $binGit = $script:BinRealGit
         [Collections.Generic.List[Object]] $gitArgs = @()
 
-        if( $GitArgList ) {
+        <#
+        if adding -C manually, this order is required: (before the rest)
+            GitServe.Invoke-UGit -GitArgList '-C', (gi '../..' ), 'status
+        #>
+        if( $PSBoundParameters.ContainsKey('FromPath') ) {
+            $absolutePath = Get-Item $FromPath -ea 'stop'
+            $gitArgs.AddRange( @('-C', $absolutePath.FullName ) )
+        }
+
+        if( $GitArgList.count -gt 0 ) {
             # any extra parsing or filtering of user args?
             $gitArgs.AddRange( @( $GitArgList ) )
         }
@@ -71,11 +80,6 @@ function Invoke-GitServeUGit {
         }
         if( -not [string]::IsNullOrWhiteSpace( $After ) ) {
             $gitArgs.Add( ( '--after="{0}"' -f $After ))
-        }
-        # note: 'git' and 'ugit' requires you to place the '-C' args in a different location. The rest of the git args are normal between both.
-        if( $PSBoundParameters.ContainsKey('FromPath')) {
-            $absolutePath = Get-Item $FromPath -ea 'stop'
-            $gitArgs.AddRange( @('-C', $absolutePath.FullName ) )
         }
         #endregion collect UGit args
     }
@@ -173,7 +177,7 @@ function Invoke-GitServeRealGit {
             $gitArgs.AddRange( @('-C', $absolutePath.FullName ) )
         }
 
-        if( $GitArgList ) {
+        if( $GitArgList.count -gt 0 ) {
             # any extra parsing or filtering of user args?
             $gitArgs.AddRange( @( $GitArgList ) )
         }
