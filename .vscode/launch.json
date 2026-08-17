@@ -17,16 +17,16 @@
             }
         },
         {
-            "name": "Pwsh: Debug_Harness 2.ps1 ┐ [GitServed]",
+            "name": "Pwsh: Debug_Hardness.ps1 | <GitServed>",
             "type": "PowerShell",
             "request": "launch",
-            // "script": "${workspaceFolder}/scratch/debug_harness.ps1",
-            "script": "${workspaceFolder}/scratch/debug_harness2.ps1",
-            "cwd": "${cwd}",
+            "script": "${workspaceFolder}/Tests/scripts/debug_harness.ps1",
+            "cwd": "${workspaceFolder}",
+            // "args": [ "-NoProfile" ],
             "presentation": {
                 "hidden": false,
                 "group": " ",
-                "order": 1
+                "order": 0
             }
         },
         {
