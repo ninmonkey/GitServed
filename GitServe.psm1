@@ -1,6 +1,6 @@
 <#
 .Description
-    Module built on: 2026-08-17 14:23:16Z
+    Module built on: 2026-08-17 15:44:02Z
 #>
 
 #region Module.Before.ps1
@@ -1240,16 +1240,6 @@ function Invoke-GitServeUGit {
         #region collect UGit args
         $binGit = $script:BinRealGit
         [Collections.Generic.List[Object]] $gitArgs = @()
-
-        <#
-        if adding -C manually, this order is required: (before the rest)
-            GitServe.Invoke-UGit -GitArgList '-C', (gi '../..' ), 'status
-        #>
-        if( $PSBoundParameters.ContainsKey('FromPath') ) {
-            $absolutePath = Get-Item $FromPath -ea 'stop'
-            $gitArgs.AddRange( @('-C', $absolutePath.FullName ) )
-        }
-
         if( $GitArgList.count -gt 0 ) {
             # any extra parsing or filtering of user args?
             $gitArgs.AddRange( @( $GitArgList ) )
@@ -1262,6 +1252,16 @@ function Invoke-GitServeUGit {
         }
         if( -not [string]::IsNullOrWhiteSpace( $After ) ) {
             $gitArgs.Add( ( '--after="{0}"' -f $After ))
+        }
+        if( $PSBoundParameters.ContainsKey('FromPath') ) {
+            <#
+            ugit warning: '-C' must be placed in the correct position or else you get a silent error
+            It must be the *very last*, which is the incorrect position for RealGit
+                GitServe.Invoke-UGit '-C', (gi '.' ), log # Silently fails, returning error objects
+                GitServe.Invoke-UGit log, '-C', (gi '.')  # working query
+            #>
+            $absolutePath = Get-Item $FromPath -ea 'stop'
+            $gitArgs.AddRange( @('-C', $absolutePath.FullName ) )
         }
         #endregion collect UGit args
     }
