@@ -37,6 +37,8 @@ $script:DebugPath = [ordered]@{
     CommandsRoot       = Get-Item ( Join-Path $ModuleRoot 'Commands')
     RoutesRoot         = Get-Item ( Join-Path $ModuleRoot 'Routes')
 }
+$PSDefaultParameterValues['GitServe.Invoke-RealGit:PSHost'] = $true
+$PSDefaultParameterValues['GitServe.Invoke-UGit:PSHost'] = $true
 filter LogHeader {
     # Ie: <H1> Console color with formatting.
     $_ | JOin-String -f "`n## {0} ##`n" | write-host -fg LightCoral
