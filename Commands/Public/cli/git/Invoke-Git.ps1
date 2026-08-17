@@ -14,6 +14,9 @@ function Invoke-GitServeUGit {
         # RealGit vs UGit, same syntax:
         > GitServe.Invoke-UGit    -FromPath (gi .) -GitArgList 'log', '-n', '3'
         > GitServe.Invoke-RealGit -FromPath (gi .) -GitArgList 'log', '-n', '3'
+    .example
+        GitServe.Invoke-Ugit -FromPath '..\GitServed\' status
+        GitServe.Invoke-UGit log, -n, 2
     .link
         Invoke-GitServeRealGit
     .link
@@ -118,6 +121,15 @@ function Invoke-GitServeRealGit {
     .NOTES
         future includes an ignore redirect like 2>$null ? Or move that to a special command that invokes this
     .example
+        # to run: git --no-pager log -n 4 --format=oneline --color=always
+        GitServe.Invoke-RealGit --no-pager, log, -n, 4, --format=oneline, --color=always
+
+        # or the same using cmdlet parameters
+        GitServe.Invoke-RealGit -NoPager -ColorAlways log, -n, 4, --format=oneline
+    .example
+        # setting custom output format
+        GitServe.Invoke-RealGit -Format oneline log, -n, 4, --abbrev-commit, --after=2022-12-01
+    .example
         # DryRun: Do not actually invoke git. Just print the arguments that would be
         > GitServe.Invoke-RealGit -DryRun -FromPath 'C:\data\myGit\GitServed' -ArgList 'log', '-n', '2'
     .example
@@ -158,6 +170,22 @@ function Invoke-GitServeRealGit {
         # for git argument: '--after=<string>'
         [string] $After,
 
+        # for git argument: --no-pager
+        # depending on the command, and if you're running as jobs, this may or may not matter ( at least when ran in non-interactive mode )
+        [switch] $NoPager,
+
+        # always output ansi escapes: for git argument: --color=always
+        [switch] $ColorAlways,
+
+        # for git argument: --format=<format>:
+        <#
+        note(valid): valid formats for  'git log':
+            one of oneline, short, medium, full, fuller, reference, email, raw, format:<string> and tformat:<string>.
+            When <format> is none of the above, and has %placeholder in it, it acts as if --pretty=tformat:<format> were given.
+        #>
+        [ArgumentCompletions('oneline', 'short', 'medium', 'full', 'fuller', 'reference', 'email', 'raw'  )]
+        [string] $Format,
+
         # Like -DryRun but returns the arguments instead of printing them
         [Alias('PassThru')]
         [switch] $OutputArgAsList,
@@ -171,8 +199,14 @@ function Invoke-GitServeRealGit {
         $binGit = $script:BinRealGit
         [Collections.Generic.List[Object]] $gitArgs = @()
 
-        # note: 'git' and 'ugit' requires you to place the '-C' args in a different location. The rest of the git args are normal between both.
+        #region args before -C
+        if( $NoPager ) {
+            $gitArgs.Add('--no-pager')
+        }
+        #endregion args before -C
+
         if( $PSBoundParameters.ContainsKey('FromPath')) {
+            # note: real git requires '-C' before almost all args.
             $absolutePath = Get-Item $FromPath -ea 'stop'
             $gitArgs.AddRange( @('-C', $absolutePath.FullName ) )
         }
@@ -191,6 +225,15 @@ function Invoke-GitServeRealGit {
         if( -not [string]::IsNullOrWhiteSpace( $After ) ) {
             $gitArgs.Add( ( '--after="{0}"' -f $After ))
         }
+
+        #region args after all other git args
+        if( $Format ) {
+            $gitArgs.Add( "--format=${Format}" )
+        }
+        if( $ColorAlways ) {
+            $gitArgs.Add( '--color=always' )
+        }
+        #endregion args after all other git args
         #endregion collect RealGit args
     }
     process { }
