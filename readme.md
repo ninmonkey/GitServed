@@ -5,7 +5,12 @@
   - [Misc](#misc)
   - [Using RepoShortNames](#using-reposhortnames)
   - [Config](#config)
+    - [Get Host, RepoRoot](#get-host-reporoot)
     - [Change Default RepoRoot](#change-default-reporoot)
+  - [Cloning](#cloning)
+- [`git` and `ugit` example](#git-and-ugit-example)
+  - [Invoke RealGit / `git.exe`](#invoke-realgit--gitexe)
+  - [Invoke `UGit`](#invoke-ugit)
 - [Tips](#tips)
   - [Aliases and Command names](#aliases-and-command-names)
   - [Search Commands by Names](#search-commands-by-names)
@@ -71,6 +76,9 @@ Push-Location ( GitServe.Path.FromShortRepoName -ShortRepoName 'junegunn/fzf' )
 
 ## Config
 
+
+### Get Host, RepoRoot
+
 **Get Config**
 ```powershell
 GitServe.Get-ConfigHost
@@ -97,8 +105,80 @@ GitServe.Repo.List | Ft # now lists the new location
 # using multiple roots
 GitServe.Set-ConfigRepoRoot -Path 'c:\root1', 'c:\anotherRoot'
 GitServe.Repo.List | Ft
-
 ```
+
+## Cloning
+
+```powershell
+GitServe.Git.Clone 'https://github.com/BurntSushi/ripgrep.git'
+```
+
+# `git` and `ugit` example
+
+## Invoke RealGit / `git.exe`
+
+To run
+```powershell
+git --no-pager log -n 4 --format=oneline --color=always
+```
+use
+```powershell
+GitServe.Invoke-RealGit --no-pager, log, -n, 4, --format=oneline, --color=always
+# or the same using cmdlet parameters
+GitServe.Invoke-RealGit -NoPager -ColorAlways log, -n, 4, --format=oneline
+```    
+----
+Using a custom `-Format` (tab completions)
+```powershell
+GitServe.Invoke-RealGit -Format oneline log, -n, 4, --abbrev-commit, --after=2022-12-01
+```    
+
+`-DryRun` Do not actually invoke git. Just print the arguments that would be used
+
+```powershell
+GitServe.Invoke-RealGit -DryRun -FromPath 'C:\data\myGit\GitServed' -ArgList 'log', '-n', '2'
+# output: Calling RealGit => git -C C:\data\myGit\GitServed log -n 2
+```    
+---
+
+> [!TIP]
+> You can run git commands from any directory. Native git uses `git -C 'path'` .
+> GitServe uses `-FromPath`
+
+
+To run
+```powershell
+git -C ( gi 'c:\data\myGit\GitServed' ) log -n 2
+```
+use
+```powershell
+GitServe.Invoke-RealGit -FromPath 'C:\data\myGit\GitServed' -ArgList 'log', '-n', '2'
+```    
+
+---
+```powershell
+
+# example: list HEAD files
+# the original command was: git.exe -C (gi '.') ls-tree -r HEAD --name-only
+GitServe.Invoke-RealGit -Path '.' -GitArgList 'ls-tree', '-r', 'HEAD', '--name-only'
+```    
+```powershell
+
+# show tags, jump to tag
+GitServe.Invoke-RealGit -ColorAlways -NoPager tag, -n
+# out: v0.0.12
+GitServe.Invoke-RealGit -ColorAlways -NoPager show, v0.0.12
+
+# show hash and message since tag
+GitServe.Invoke-RealGit -ColorAlways -NoPager log, v0.0.12..HEAD, --oneline
+
+# print bare messages without hash
+GitServe.Invoke-RealGit -ColorAlways -NoPager log, v0.0.12..HEAD, --format=%s
+```    
+
+## Invoke `UGit`
+
+
 
 # Tips
 
