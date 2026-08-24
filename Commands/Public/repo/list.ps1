@@ -96,6 +96,10 @@
         #endregion calculate new return value
     }
 
+
+    # ensure sort, regardless of import method
+    $records = $records | Sort-Object NewestCommitDate -Descending
+
     $records.count | Join-String -op 'final $records.count: ' | Write-Verbose
 
     # save cache if any records are found
