@@ -13,3 +13,13 @@
 - `/Tests`
   - `/Tests/Private` - Pester tests of module internals
   - `/Tests/scripts` - Stand alone scripts for testing. Not pester tests
+
+# Function naming
+
+- Exported commands are named `Verb-GitServeName` ex: `ConvertFrom-GitServeShortRepoName`
+- Aliases are named 
+- `GitServe.<abbreviatedName>` ex: `GitServe.Path.FromShortRepoName`
+- or longer alias including relative paths 
+  - `GitServe.<RelativePath>.<Name>`
+  - ex: `GitServe.Route.Metric.Commit`, ` GitServe.Route.Metric.Language`
+  - they are not always one-to-one with paths if it makes sense for the user in the shell
