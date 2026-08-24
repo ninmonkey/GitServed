@@ -138,6 +138,17 @@ function Invoke-GitServeRealGit {
         # example: list HEAD files
         # the original command was: git.exe -C (gi '.') ls-tree -r HEAD --name-only
         GitServe.Invoke-RealGit -Path '.' -GitArgList 'ls-tree', '-r', 'HEAD', '--name-only'
+    .example
+        # show tags, jump to tag
+        GitServe.Invoke-RealGit -ColorAlways -NoPager tag, -n
+        # out: v0.0.12
+        GitServe.Invoke-RealGit -ColorAlways -NoPager show, v0.0.12
+
+        # show hash and message since tag
+        GitServe.Invoke-RealGit -ColorAlways -NoPager log, v0.0.12..HEAD, --oneline
+
+        # show commit message only since tag
+        GitServe.Invoke-RealGit -ColorAlways -NoPager log, v0.0.12..HEAD, --format=%s
     .link
         Invoke-GitServeRealGit
     .link
