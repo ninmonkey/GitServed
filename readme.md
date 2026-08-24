@@ -4,6 +4,7 @@
   - [Get Repos](#get-repos)
   - [Misc](#misc)
   - [Using RepoShortNames](#using-reposhortnames)
+  - [Metrics](#metrics)
   - [Config](#config)
     - [Get Host, RepoRoot](#get-host-reporoot)
     - [Change Default RepoRoot](#change-default-reporoot)
@@ -72,6 +73,45 @@ Push-Location ( GitServe.Path.FromShortRepoName -ShortRepoName 'junegunn/fzf' )
 ```powershell
 (GitServe.Repo.List).OwnerRepoPair
 ```
+
+## Metrics
+
+```powershell
+GitServe.Invoke-UGit log | GitServe.Metric.CommitCount -Period day
+GitServe.Invoke-UGit log | GitServe.Metric.CommitCount -Period month
+```
+<details><summary>Output (Click to expand)
+
+</summary>
+
+
+```powershell
+> GitServe.Invoke-UGit log -After '2024-01-01' 
+    | GitServe.Metric.CommitCount -Period year
+    | Sort CommitDate -Descending
+    | ft Year, Month, *name*, CommitCount 
+
+
+Year Month GitUserName    CommitCount
+---- ----- -----------    -----------
+2026     3 Snowy                    1
+2026     4 sharpchen                1
+2026     1 Justin Chung             1
+2026     4 Andy Jordan              1
+2026     2 Anam Navied              1
+2025     9 xtqqczze                 1
+2025     4 Maxime Labelle           1
+2025     5 Mahir Cadirci            1
+2025     7 jftkcs                   1
+2025     2 Fabrice Sanga            1
+2025    10 Dongbo Wang             20
+2025     8 Andy Jordan              9
+2024    11 Sean Wheeler             1
+2024    10 Dongbo Wang             21
+2024     6 Andy Jordan              1
+```
+
+</details>
 
 
 ## Config
