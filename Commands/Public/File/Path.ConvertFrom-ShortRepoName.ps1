@@ -1,7 +1,7 @@
 ﻿function ConvertFrom-GitServeShortRepoName {
     <#
     .synopsis
-        (internal) Resolve a valid directory path using relative repo names
+        Resolve a valid directory path using relative repo names
     .DESCRIPTION
         Exceptions - Does not throw unless you opt in. Default behavior is to write error and returns $Null.
 
