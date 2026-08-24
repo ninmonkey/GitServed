@@ -5,10 +5,14 @@
     .DESCRIPTION
     .notes
     .example
+        # using cache
         GitServe.Repo.List
     .example
         # force updating the repo listing
         GitServe.Repo.List -WithoutCache
+    .example
+        # you can increase depth but this will increase time
+        GitServe.Repo.List -MaxDepth 6
     #>
     [Alias('GitServe.Repo.List')]
     [OutputType( 'GitServe.Route.Repo.List' )]
@@ -16,11 +20,14 @@
     param(
         # Force refresh, clear repo listing cache. Saves result to cache file.
         [Alias('Force')]
-        [switch] $WithoutCache
+        [switch] $WithoutCache,
+
+        # Max depth for Get-ChildItem to search? The majority of time spent is from this setting. ( default: 4 )
+        [int] $MaxDepth = 4
     )
 
     $searchRoot = @( GetConfig.ClonedRepoRoot )
-    $findGitRepos = Get-ChildItem $searchRoot -Filter '.git' -Directory -Force -Recurse | ForEach-Object Parent
+    $findGitRepos = Get-ChildItem $searchRoot -Filter '.git' -Directory -Force -Depth $MaxDepth | ForEach-Object Parent
     $delim = "`u{2400}" # unique, but safe to print delimiter
 
     $outputTypeName = 'GitServe.Route.Repo.List'
