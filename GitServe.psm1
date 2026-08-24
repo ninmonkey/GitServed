@@ -1,6 +1,6 @@
 <#
 .Description
-    Module built on: 2026-08-17 15:44:02Z
+    Module built on: 2026-08-24 13:54:50Z
 #>
 
 #region Module.Before.ps1
@@ -25,14 +25,20 @@ $script:ModuleState = [hashtable]::Synchronized(@{
     CorsAllowCredentials = $false
 
     ClonedRepoRoot = @( 'c:/GitLoggerApp/ClonedRepos', '/cloned-repos' ) # configure with: GitServe.Set-ConfigRepoRoot
-})
 
+    JsonCacheRepoList = Join-Path $env:LocalAppData 'GitServe\Cache\RepoList.json'  # fix(portability): make defaults cross platform like linux ~/.GitServe/Cache/RepoList.json
+})
 
 # Core shared cache # nyi
 $script:ResponseCache = [hashtable]::Synchronized(@{})
 
-
 [Net.HttpListener] $script:Listener = [Net.HttpListener]::new()
+
+#region Init Json Cache for RepoList
+if( -not ( Test-Path ( $script:ModuleState.JsonCacheRepoList ) ) ) {
+    New-Item -path $script:ModuleState.JsonCacheRepoList -Force
+}
+#endregion Init Json Cache for RepoList
 
 
 #endregion Module.Before.ps1
@@ -1317,6 +1323,17 @@ function Invoke-GitServeRealGit {
         # example: list HEAD files
         # the original command was: git.exe -C (gi '.') ls-tree -r HEAD --name-only
         GitServe.Invoke-RealGit -Path '.' -GitArgList 'ls-tree', '-r', 'HEAD', '--name-only'
+    .example
+        # show tags, jump to tag
+        GitServe.Invoke-RealGit -ColorAlways -NoPager tag, -n
+        # out: v0.0.12
+        GitServe.Invoke-RealGit -ColorAlways -NoPager show, v0.0.12
+
+        # show hash and message since tag
+        GitServe.Invoke-RealGit -ColorAlways -NoPager log, v0.0.12..HEAD, --oneline
+
+        # show commit message only since tag
+        GitServe.Invoke-RealGit -ColorAlways -NoPager log, v0.0.12..HEAD, --format=%s
     .link
         Invoke-GitServeRealGit
     .link
@@ -1495,6 +1512,175 @@ function Metric-GitServeLanguageCount {
         }
         , @( $summary )
     }
+}
+
+function Get-GitServeRepoList {
+    <#
+    .synopsis
+        List git repos. Same as: irm /repo/list
+    .DESCRIPTION
+    .notes
+    .example
+        # using cache
+        GitServe.Repo.List
+    .example
+        # force updating the repo listing
+        GitServe.Repo.List -WithoutCache
+    .example
+        # you can increase depth but this will increase time
+        GitServe.Repo.List -MaxDepth 6
+    #>
+    [Alias('GitServe.Repo.List')]
+    [OutputType( 'GitServe.Route.Repo.List' )]
+    [CmdletBinding()]
+    param(
+        # Force refresh, clear repo listing cache. Saves result to cache file.
+        [Alias('Force')]
+        [switch] $WithoutCache,
+
+        # Max depth for Get-ChildItem to search? The majority of time spent is from this setting. ( default: 4 )
+        [int] $MaxDepth = 4
+    )
+
+    $searchRoot = @( GetConfig.ClonedRepoRoot )
+    $findGitRepos = Get-ChildItem $searchRoot -Filter '.git' -Directory -Force -Depth $MaxDepth | ForEach-Object Parent
+    $delim = "`u{2400}" # unique, but safe to print delimiter
+
+    $outputTypeName = 'GitServe.Route.Repo.List'
+
+    #region load cache
+    $JsonCachePath = $script:ModuleState.JsonCacheRepoList
+    $cache = $null
+    [Collections.Generic.List[object]] $records = @()
+
+    if( $WithoutCache ) {
+        '$WithoutCache, deleting: ' | Write-Verbose
+        Remove-Item -LiteralPath $JsonCachePath
+    }
+
+    if( -not $WithoutCache ) {
+        $JsonCachePath | Join-String -op 'Using Cache: ' | Write-Verbose
+        $cache = Get-Content $JsonCachePath -ea ignore | ConvertFrom-Json
+        $cache.RepoList.Count | Join-String -op '$cache.RepoList.Count: ' | Write-Verbose
+        # if valid results, emit correct type names
+        if( $cache.RepoList ) {
+            $records = $cache.RepoList | %{
+                $_.PSObject.TypeNames.Insert(0, $outputTypeName )
+                $_
+            }
+        }
+    }
+    #endregion load cache
+
+    $records.count | Join-String -op 'records loaded records from cache? ' | Write-Verbose
+
+    if( $WithoutCache -or ( $records.count -eq 0 ) ) {
+        #region calculate new return value
+        # cache was either invalid or was disabled
+        'Calculating fresh repo list' | Write-Verbose
+
+        $records = @(
+            foreach ($repoPath in $findGitRepos) {
+                # get remote, or fallback string
+                $remote = ( ( GitServe.Invoke-RealGit -FromPath $repoPath.FullName -GitArgList 'remote', 'get-url', 'origin'  ) 2>$Null ) ?? '<empty-remote>'
+
+                # Grab latest commit date and relative using a single git call. Then split by delim.
+
+                $delim = "`u{2400}"
+                $fStr = "--format=%cr${delim}%cd"
+                $out = GitServe.Invoke-RealGit -FromPath $repoPath.FullName -GitArgList @(
+                    'log', '-n', '1',
+                    $fStr, '--date=format:%Y-%m-%d'
+                )
+                $newestCommitRelative, $newestCommitDateOnly = $out -split $delim, 2
+                $ownerPathName = $repoPath.FullName | Split-path -Parent | split-path  -Leaf
+
+                [pscustomobject][ordered]@{
+                    PSTypeName           = 'GitServe.Route.Repo.List'
+                    # CommitCount          = $commitCount  # disabled(slow): commit count
+                    Name                 = $repoPath.BaseName
+                    NewestCommitDate     = $newestCommitDateOnly
+                    NewestCommitRelative = $newestCommitRelative
+                    Owner                = $ownerPathName
+                    OwnerRepoPair            = '{0}/{1}' -f @( $ownerPathName, $repoPath.BaseName )
+                    Path                 = $repoPath.FullName
+                    Remote               = $remote
+                    # '( git remote get-url origin 2>$null | out-null ) ?? '<missing>''
+                }
+            }
+        )
+        #endregion calculate new return value
+    }
+
+    $records.count | Join-String -op 'final $records.count: ' | Write-Verbose
+
+    # save cache if any records are found
+    if( $records.count -gt 0  ) {
+        $JsonCachePath | Join-String -op 'Writing: ' | Write-Verbose
+        @{
+            LastUpdate = [datetime]::Now
+            RepoList = @( $records )
+        }   | ConvertTo-Json
+            | Set-Content -Encoding utf8 -Path $JsonCachePath
+    }
+
+    # Always remove file if records are empty
+    if( $records.count -eq 0 ) {
+        $JsonCachePath | Join-String -op 'Records count == 0, deleting: ' | Write-Verbose
+        Remove-Item -LiteralPath $JsonCachePath
+    }
+
+
+    return $records
+}
+
+function ConvertFrom-GitServeShortRepoName {
+    <#
+    .synopsis
+        Resolve a valid directory path using relative repo names
+    .DESCRIPTION
+        Exceptions - Does not throw unless you opt in. Default behavior is to write error and returns $Null.
+
+        -Throw : always throw when path is missing. Opposite of NeverThrow
+    .notes
+        should it throw an exception if more than one repo matches the name?
+        should it throw if none is found? Or write error and return null?
+    .example
+        > $optional = GitServe.Path.FromShortRepoName -Name 'BurntSushi/ripgrep'
+        > $required = GitServe.Path.FromShortRepoName -Name 'BurntSushi/ripgrep' -Throw
+    #>
+    [Alias('GitServe.Path.FromShortRepoName')]
+    [OutputType(
+        [System.IO.DirectoryInfo]
+    )]
+    [CmdletBinding()]
+    param(
+        # ex: "BurntSushi/ripgrep" . ( see "OwnerRepoPair" from /repo/list )
+        [Alias('Name', 'RepoOwnerPair' )]
+        [Parameter(Mandatory)]
+        [string] $ShortRepoName,
+
+        # Base directory to search. Default is from: GetConfig.ClonedRepoRoot
+        [Alias('ClonedRepoRoot', 'RelativeRoot', 'Root', 'Path')]
+        [string] $BasePath,
+
+        # opt-in to throwing on missing paths ( Does not throw unless you opt in. Default behavior is to write error and returns $Null )
+        [switch] $Throw
+    )
+
+    if ( [String]::IsNullOrWhitespace( $BasePath ) ) {
+        $ClonedRepoRoot = GetConfig.ClonedRepoRoot | Get-Item -ea 'stop'
+        'RootPath: {0}' -f ( $ClonedRepoRoot ) | Write-Verbose
+    }
+    $RepoPath = Join-Path $ClonedRepoRoot $ShortRepoName # todo(sanitization): use a better escape and match method
+    if( ! ( Test-Path $RepoPath )) {
+        $ErrorMsg = "Error: Invalid ShortRepoName! '${ShortRepoName}'"
+        if( $Throw ) { throw $ErrorMsg }
+
+        $errorMsg | Write-Error
+        return # or throw "Error: Invalid ShortRepoName! '${ShortRepoName}'"
+    }
+    return (Get-Item $RepoPath)
 }
 
 function Start-GitServe {
@@ -1711,17 +1897,8 @@ function /repo/author {
     [bool] $Using_ByEmail   = $parsedQuery.Get('ByEmail') ??  $false
     [string] $Period        = $parsedQuery.Get('period') ?? 'year'
 
-    if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
-        $ClonedRepoRoot = GetConfig.ClonedRepoRoot | Get-Item -ea 'stop'
-        'RootPath: {0}' -f ( $ClonedRepoRoot ) | Write-Verbose
-    }
-
     #region Build Git Args
-    $RepoPath = Join-Path $ClonedRepoRoot $OwnerRepoPair # todo(sanitization): use a better escape and match method
-    if( ! ( Test-Path $RepoPath )) {
-        "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'" | Write-Host -fore red
-        throw "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'"
-    }
+    $RepoPath = GitServe.Path.FromShortRepoName -ShortRepoName $OwnerRepoPair -Throw
 
     [Collections.Generic.List[object]] $gitArgs = @(
         'log'
@@ -1745,15 +1922,18 @@ function /repo/author {
     if( $parsedQuery.Get('after') ) {
         $RealGit_splat['after'] = $parsedQuery.Get('after')
     }
+    write-warning 'WIP: requires Metric-GitServeCommitCount'
 
     #endregion Build Git Args
     #region Invoke Git Args
     try {
+        $ErrorActionPreference = 'stop' # wip: fix this route
+        # $SelectProperty =
 
         [object[]] $results = Invoke-GitServeRealGit @RealGit_splat
             | Sort-Object -Unique
             # | Select-Object -Property $SelectProperty
-            # | GitServe.Metric.CommitCount -Period $Period
+            | GitServe.Metric.CommitCount -Period $Period
     }
     catch {
         "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
@@ -1761,7 +1941,9 @@ function /repo/author {
         "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
         | Write-Error
     }
-    finally { }
+    finally {
+        $ErrorActionPreference = 'continue'
+    }
 
     return [pscustomobject]@{
         PSTypeName = 'GitServe.Route.Repo.Author'
@@ -2013,42 +2195,8 @@ function /repo/list {
     #>
     [OutputType( 'GitServe.Route.Repo.List' )]
     param()
-    $searchRoot = @( GetConfig.ClonedRepoRoot )
-    $findGitRepos = Get-ChildItem $searchRoot -Filter '.git' -Directory -Force -Recurse | ForEach-Object Parent
 
-    $delim = "`u{2400}" # unique, but safe to print delimiter
-
-    $records = @(
-        foreach ($repoPath in $findGitRepos) {
-            # get remote, or fallback string
-            $remote = ( ( GitServe.Invoke-RealGit -FromPath $repoPath.FullName -GitArgList 'remote', 'get-url', 'origin'  ) 2>$Null ) ?? '<empty-remote>'
-
-            # Grab latest commit date and relative using a single git call. Then split by delim.
-
-            $delim = "`u{2400}"
-            $fStr = "--format=%cr${delim}%cd"
-            $out = GitServe.Invoke-RealGit -FromPath $repoPath.FullName -GitArgList @(
-                'log', '-n', '1',
-                $fStr, '--date=format:%Y-%m-%d'
-            )
-            $newestCommitRelative, $newestCommitDateOnly = $out -split $delim, 2
-            $ownerPathName = $repoPath.FullName | Split-path -Parent | split-path  -Leaf
-
-            [pscustomobject][ordered]@{
-                PSTypeName           = 'GitServe.Route.Repo.List'
-                # CommitCount          = $commitCount  # disabled(slow): commit count
-                Name                 = $repoPath.BaseName
-                NewestCommitDate     = $newestCommitDateOnly
-                NewestCommitRelative = $newestCommitRelative
-                Owner                = $ownerPathName
-                OwnerRepoPair            = '{0}/{1}' -f @( $ownerPathName, $repoPath.BaseName )
-                Path                 = $repoPath.FullName
-                Remote               = $remote
-                # '( git remote get-url origin 2>$null | out-null ) ?? '<missing>''
-            }
-        }
-    )
-    return $records
+    GitServe.Repo.List
 }
 
 function /repo/log {
@@ -2143,6 +2291,47 @@ function /repo/log {
     }
     return $results
     #endregion Invoke Git
+}
+
+function /repo/md/readme {
+    <#
+    .SYNOPSIS
+        Get main readme file for a project
+    .DESCRIPTION
+    Query Parameters:
+        name   - Short repo name like "BurntSushi/ripgrep"
+    .EXAMPLE
+        irm 'http://127.0.0.1:3001/repo/md/readme?name=BurntSushi/ripgrep'
+    .LINK
+    #>
+    [OutputType( 'GitServe.Route.Repo.Md.File' )]
+    [Alias('GitServe.Route.Metric.Md.Readme')]
+    [CmdletBinding()]
+    param(
+        # a request from the listen server
+        [Parameter(Mandatory)]
+        [object] $Request
+
+    )
+    $endpointLabel = '/repo/md/readme'
+    [Collections.Specialized.NameValueCollection] $parsedQuery = ParseQueryString $Request
+    [string] $OwnerRepoPair = $parsedQuery.Get('name')
+    $RepoPath = Path.ConvertFrom-ShortRepoName -Name $OwnerRepoPair -Throw
+
+    $found = Get-ChildItem -LiteralPath $RepoPath -Recurse -Filter readme.md -File
+    $first = $found | Select-Object -First 1
+
+    "  ${endpointLabel} Found $( $found.count ) 'readme.md'" | Write-Verbose -Verbose
+
+    if ( $found.count -gt 1 ) {
+        "  ${endpointLabel} Found $( $found.count ) 'readme.md'" | Write-Host
+    }
+    return [pscustomobject][ordered]@{
+        PSTypeName = 'GitServe.Route.Repo.Md.File'
+        Name       = $first.Name
+        FullName   = $first.FullName.ToString()     # to prevent cache or json returning bytes
+    }
+
 }
 
 function /repo/metric/totalcommit {
