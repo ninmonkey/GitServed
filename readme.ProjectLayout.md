@@ -23,3 +23,14 @@
   - `GitServe.<RelativePath>.<Name>`
   - ex: `GitServe.Route.Metric.Commit`, ` GitServe.Route.Metric.Language`
   - they are not always one-to-one with paths if it makes sense for the user in the shell
+
+
+## Functions,Aliases to export
+
+Module [GitServe.psd1](../GitServed/GitServe.psd1) only exports functions if they match these patterns:
+
+```ps1
+FunctionsToExport = @( '*-GitServe*', 'Metric-*', 'GetConfig.*', 'SetConfig.*' )
+AliasesToExport   = @( 'GitServe.*' )
+VariablesToExport = @()    
+```
