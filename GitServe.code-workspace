@@ -4,5 +4,10 @@
 			"path": "." // 2026-07-26
 		}
     ],
-    "settings": {}
+    "settings": {
+        "cSpell.words": [
+            "cultureinfo",
+            "shortlog"
+        ]
+    }
 }
