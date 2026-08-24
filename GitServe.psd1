@@ -111,7 +111,7 @@
         PSData = @{
 
             # Tags applied to this module. These help with module discovery in online galleries.
-            Tags = 'http', 'git', 'query', 'logs'
+            Tags = 'http', 'git', 'query', 'logs', 'ninmonkey', 'gitlogger'
 
             # A URL to the license for this module.
             # LicenseUri = ''
@@ -137,6 +137,10 @@
         } # End of PSData hashtable
 
     } # End of PrivateData hashtable
+
+    PowerShellVersion       = '7.0'
+    CompatiblePSEditions    = @( 'Core' )
+
 
     # HelpInfo URI of this module
     # HelpInfoURI = ''
