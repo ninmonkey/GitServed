@@ -26,7 +26,10 @@
     Copyright         = '(c) Jake Bolton. All rights reserved.'
 
     # Description of the functionality provided by this module
-    # Description = 'desc'
+    Description = 'Query git logs and metrics from the cli or over localhost using fetch from other apps'
+
+    PowerShellVersion       = '7.0'
+    CompatiblePSEditions    = @( 'Core' )
 
     # Minimum version of the PowerShell engine required by this module
     # PowerShellVersion = ''
@@ -137,10 +140,6 @@
         } # End of PSData hashtable
 
     } # End of PrivateData hashtable
-
-    PowerShellVersion       = '7.0'
-    CompatiblePSEditions    = @( 'Core' )
-
 
     # HelpInfo URI of this module
     # HelpInfoURI = ''

@@ -2,6 +2,8 @@ GitServed.code-workspace
 GitServe.code-workspace
 PSScriptAnalyzerSettings.psd1
 
+BuildOutput/
+
 # Ignore test files
 Scratch/
 
@@ -38,3 +40,4 @@ app-front/.next
 
 # other:
 # Scratch/
+
