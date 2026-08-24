@@ -27,17 +27,8 @@
     [bool] $Using_ByEmail   = $parsedQuery.Get('ByEmail') ??  $false
     [string] $Period        = $parsedQuery.Get('period') ?? 'year'
 
-    if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
-        $ClonedRepoRoot = GetConfig.ClonedRepoRoot | Get-Item -ea 'stop'
-        'RootPath: {0}' -f ( $ClonedRepoRoot ) | Write-Verbose
-    }
-
     #region Build Git Args
-    $RepoPath = Join-Path $ClonedRepoRoot $OwnerRepoPair # todo(sanitization): use a better escape and match method
-    if( ! ( Test-Path $RepoPath )) {
-        "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'" | Write-Host -fore red
-        throw "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'"
-    }
+    $RepoPath = GitServe.Path.FromShortRepoName -ShortRepoName $OwnerRepoPair -Throw
 
     [Collections.Generic.List[object]] $gitArgs = @(
         'log'
@@ -61,15 +52,18 @@
     if( $parsedQuery.Get('after') ) {
         $RealGit_splat['after'] = $parsedQuery.Get('after')
     }
+    write-warning 'WIP: requires Metric-GitServeCommitCount'
 
     #endregion Build Git Args
     #region Invoke Git Args
     try {
+        $ErrorActionPreference = 'stop' # wip: fix this route
+        # $SelectProperty =
 
         [object[]] $results = Invoke-GitServeRealGit @RealGit_splat
             | Sort-Object -Unique
             # | Select-Object -Property $SelectProperty
-            # | GitServe.Metric.CommitCount -Period $Period
+            | GitServe.Metric.CommitCount -Period $Period
     }
     catch {
         "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
@@ -77,7 +71,9 @@
         "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
         | Write-Error
     }
-    finally { }
+    finally {
+        $ErrorActionPreference = 'continue'
+    }
 
     return [pscustomobject]@{
         PSTypeName = 'GitServe.Route.Repo.Author'
