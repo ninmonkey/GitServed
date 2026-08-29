@@ -155,6 +155,7 @@ function Invoke-GitServeRealGit {
         Invoke-GitServeUGit
     #>
     [Alias(
+        'Git',
         'GitServe.Invoke-RealGit'
     )]
     [CmdletBinding()]
