@@ -21,6 +21,7 @@
             "type": "PowerShell",
             "request": "launch",
             "script": "${workspaceFolder}/Tests/scripts/debug_harness.ps1",
+            // "script": "${workspaceFolder}/Tests/scripts/debug_harness.ps1 -StartListener",
             "cwd": "${workspaceFolder}",
             // "args": [ "-NoProfile" ],
             "presentation": {

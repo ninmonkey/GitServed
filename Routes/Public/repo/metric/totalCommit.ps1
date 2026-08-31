@@ -87,10 +87,9 @@
             | GitServe.Metric.CommitCount -Period $Period
     }
     catch {
-        "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
-        | Write-Host
-        "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
-        | Write-Error
+        $errMsg = "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
+        $errMsg | Write-Host
+        throw $errMsg
     }
     finally { }
 

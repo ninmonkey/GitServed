@@ -22,6 +22,8 @@ param(
     [int] $Port = 3001 # port number to listen on
 )
 
+$error.clear(); try { GitServe.Stop } catch { }
+
 #region config setup
 $ModuleRoot = Get-Item -ea 'stop' ( Join-Path $PSScriptRoot '../..' )
 
@@ -97,5 +99,9 @@ $DebugPath | ft -AutoSize
 # GitServe.Get-NextDatePeriod'
 # GitServe.Get-NextDatePeriod -CurrentDate $today -Period month
 
-
+# try {
+#     GitServe.Start -PSHost -HostName '127.0.0.1' -Port $Port -ea stop
+# } finally {
+#     GitServe.Stop
+# }
 #  $fastLogs = & $curModInfo { FastGItLog -FromPath '.' -ea break }  | Select -first 10
