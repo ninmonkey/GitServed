@@ -47,10 +47,10 @@
         }
         function __toKeyId {
             # Generate a PrimaryKey. This determines distinct testing for records
-            param( $Obj )
+            param( $CommitDate, $GitUserName )
             '{0}_{1}' -f @(
-                $Obj.CommitDate.ToString( $keyFormat )
-                $Obj.GitUserName
+                $CommitDate.ToString( $keyFormat )
+                $GitUserName
             )
         }
         $reverseComparer = [System.Collections.Generic.Comparer[string]]::Create({
@@ -59,7 +59,7 @@
         [Collections.Generic.SortedDictionary[string,object]] $metric = $reverseComparer
     }
     process {
-        $key = __toKeyId $InputObject
+        $key = __toKeyId -CommitDate $CommitDate -GitUserName $GitUserName
         if( -not $metric.ContainsKey( $key ) ) {
             $initialValue = [pscustomobject][ordered]@{
                 PSTYpeName  = 'GitServe.Metric.CommitCount'
