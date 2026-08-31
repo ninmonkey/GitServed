@@ -24,15 +24,25 @@
     )
 
     # working:
-    $logs = GitServe.Invoke-RealGit -NoPager -GitArgList log, --date=iso, --pretty=format:"%cd${delim}%an${delim}%ae${delim}[%s]"
+    # $logs = GitServe.Invoke-RealGit -NoPager -GitArgList log, --date=iso, --pretty=format:"%cd${delim}%an${delim}%ae${delim}[%s]"
 
     # get all parameters
-    $params = @{} + $PSBoundParameters
+    # $params = @{} + $PSBoundParameters
+    $passedParams = [hashtable]::new( $PSBoundParameters )
+    $delim = "`u{2400}"
 
+    $passedParams['GitArgList'] = @(
+        $passedParams['GitArgList']
+        '--date=iso'
+        "--pretty=format:`"%cd${delim}%an${delim}%ae${delim}[%s]`""
+    )
 
-    Invoke-GitServeRealGit
     # git.exe --no-pager log --pretty=format:"%cd${delim}%an${delim}%ae${delim}[%s]" --date=iso
-    $logs | % {
+    # $logs  = ...
+
+    # $logs = Invoke-GitServeRealGit -PSHost -Verbose @passedParams
+    Invoke-GitServeRealGit -PSHost -Verbose @passedParams
+    | % {
         $date, $author, $email, $rest  =  $_ -split $delim, 4
         [pscustomobject]@{
             CommitDate = $Date

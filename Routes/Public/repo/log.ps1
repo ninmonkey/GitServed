@@ -24,6 +24,10 @@
         irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep&since=2.weeks&limit=4'
         irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep&before=2.month&limit=3'
         irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep&since=2.month&limit=3'
+    .LINK
+        /repo/log
+    .LINK
+        /repo/fastlog
     #>
 
     [OutputType( 'GitServe.Route.Repo.Log' )]

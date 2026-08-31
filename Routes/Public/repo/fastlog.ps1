@@ -24,6 +24,10 @@
         irm 'http://127.0.0.1:3001/repo/fastlog?name=BurntSushi/ripgrep&since=2.weeks&limit=4'
         irm 'http://127.0.0.1:3001/repo/fastlog?name=BurntSushi/ripgrep&before=2.month&limit=3'
         irm 'http://127.0.0.1:3001/repo/fastlog?name=BurntSushi/ripgrep&since=2.month&limit=3'
+    .LINK
+        /repo/log
+    .LINK
+        /repo/fastlog
     #>
 
     [OutputType( 'GitServe.Route.Repo.FastLog' )]
@@ -80,7 +84,8 @@
     #region Invoke Git
     try {
 
-        $results = Invoke-GitServeRealGit @git_splat
+        $results = FastGitLog @git_splat
+        # $results = Invoke-GitServeRealGit @git_splat
             # | Select-Object -Property $SelectProperty
     }
     catch {
