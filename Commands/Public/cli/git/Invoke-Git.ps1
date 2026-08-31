@@ -161,6 +161,7 @@ function Invoke-GitServeRealGit {
     [CmdletBinding()]
     param(
         # Arguments passed to real 'git'. Or any not configurable from the other parameters
+        # [Parameter(ValueFromRemainingArguments)]
         [Alias('ArgList', 'GitArgs', 'RealGitArgs')]
         [string[]] $GitArgList,
 

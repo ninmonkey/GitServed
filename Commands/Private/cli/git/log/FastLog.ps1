@@ -31,19 +31,30 @@
     $passedParams = [hashtable]::new( $PSBoundParameters )
     $delim = "`u{2400}"
 
+    # $buffer = @( $passedParams['GitArgList'] )
+
     $passedParams['GitArgList'] = @(
-        $passedParams['GitArgList']
+        'log'
+        # @buffer
+        # $passedParams['GitArgList'] # this was sometimes blank
         '--date=iso'
-        "--pretty=format:`"%cd${delim}%an${delim}%ae${delim}[%s]`""
+        "--pretty=format:%cd${delim}%an${delim}%ae${delim}[%s]"
     )
+    $DateIsoFstr = "yyyy-MM-dd HH:mm:ss zzz"
 
     # git.exe --no-pager log --pretty=format:"%cd${delim}%an${delim}%ae${delim}[%s]" --date=iso
     # $logs  = ...
 
     # $logs = Invoke-GitServeRealGit -PSHost -Verbose @passedParams
-    Invoke-GitServeRealGit -PSHost -Verbose @passedParams
+    $passedParams | ConvertTo-Json | Write-Host -fg 'cyan'
+    Invoke-GitServeRealGit -NoPager @passedParams # -ea break # -PSHost -Verbose
     | % {
-        $date, $author, $email, $rest  =  $_ -split $delim, 4
+        $dateStr, $author, $email, $rest  =  $_ -split $delim, 4
+
+        # $Date = [DateTime]::ParseExact($date, $DateIsoFstr, ([cultureinfo]::InvariantCulture) )
+        $Date = [DateTime]::ParseExact($date, $DateIsoFstr, $null )
+        $date = $dateStr
+
         [pscustomobject]@{
             CommitDate = $Date
             GitUserName = $Author
