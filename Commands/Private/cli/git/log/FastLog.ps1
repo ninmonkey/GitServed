@@ -23,7 +23,9 @@
         [string] $After,
 
         # Should it write errors when date format fails ? otherwise coerce them into null
-        [switch] $ShowDateError
+        [switch] $ShowDateError,
+
+        [switch] $PSHost
     )
 
     # working:
@@ -55,7 +57,9 @@
     # $logs  = ...
 
     # $logs = Invoke-GitServeRealGit -PSHost -Verbose @passedParams
-    $passedParams | ConvertTo-Json | Write-Host -fg 'cyan'
+    if( $PSHost ) {
+        $passedParams | ConvertTo-Json | Write-Host -fg 'cyan'
+    }
     Invoke-GitServeRealGit -NoPager @passedParams # -ea break # -PSHost -Verbose
     | % {
         $line = $_
