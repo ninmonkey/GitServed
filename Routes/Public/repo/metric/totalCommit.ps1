@@ -63,31 +63,27 @@
         "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'" | Write-Host -fore red
         throw "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'"
     }
-    [Collections.Generic.List[object]] $gitArgs = @(
-        'log'
-    )
-
-    $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
-    $UGit_splat = @{
+    $git_splat = @{
         FromPath = $RepoPath
-        GitArgList = $gitArgs
+        # GitArgList = @()
     }
     if( $parsedQuery.Get('since') ) {
-        $UGit_splat['since'] = $parsedQuery.Get('since')
+        $git_splat['since'] = $parsedQuery.Get('since')
     }
     if( $parsedQuery.Get('before') ) {
-        $UGit_splat['before'] = $parsedQuery.Get('before')
+        $git_splat['before'] = $parsedQuery.Get('before')
     }
     if( $parsedQuery.Get('after') ) {
-        $UGit_splat['after'] = $parsedQuery.Get('after')
+        $git_splat['after'] = $parsedQuery.Get('after')
     }
 
     #endregion Build Git Args
     #region Invoke Git Args
     try {
 
-        [object[]] $results = Invoke-GitServeUGit @UGit_splat
-            | Select-Object -Property $SelectProperty
+        # [object[]] $results = Invoke-GitServeUGit @UGit_splat
+        #     | Select-Object -Property $SelectProperty
+        $results = FastGitLog @git_splat
             | GitServe.Metric.CommitCount -Period $Period
     }
     catch {
