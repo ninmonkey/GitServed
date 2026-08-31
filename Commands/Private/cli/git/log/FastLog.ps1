@@ -20,7 +20,10 @@
         [string] $Before,
 
         # for git argument: '--after=<string>'
-        [string] $After
+        [string] $After,
+
+        # Should it write errors when date format fails ? otherwise coerce them into null
+        [switch] $ShowDateError
     )
 
     # working:
@@ -30,6 +33,7 @@
     # $params = @{} + $PSBoundParameters
     $passedParams = [hashtable]::new( $PSBoundParameters )
     $delim = "`u{2400}"
+    $strLFSymbol = "`u{240a}"
 
     # $buffer = @( $passedParams['GitArgList'] )
 
@@ -38,7 +42,12 @@
         # @buffer
         # $passedParams['GitArgList'] # this was sometimes blank
         '--date=iso'
-        "--pretty=format:%cd${delim}%an${delim}%ae${delim}[%s]"
+
+        # this
+        # "--pretty=format:%cd${delim}%an${delim}%ae${delim}[%s]"
+        # should be
+        # '--pretty=format:%cd␀%an␀%ae␀[%s]'
+        "--pretty=format:%cd${Delim}%an${Delim}%ae${Delim}[%s]"
     )
     $DateIsoFstr = "yyyy-MM-dd HH:mm:ss zzz"
 
@@ -49,16 +58,28 @@
     $passedParams | ConvertTo-Json | Write-Host -fg 'cyan'
     Invoke-GitServeRealGit -NoPager @passedParams # -ea break # -PSHost -Verbose
     | % {
-        $dateStr, $author, $email, $rest  =  $_ -split $delim, 4
+        $line = $_
+        $dateStr, $author, $email, $commitMessage, $rest  =  $line -split $delim, 5
 
         # $Date = [DateTime]::ParseExact($date, $DateIsoFstr, ([cultureinfo]::InvariantCulture) )
-        $Date = [DateTime]::ParseExact($date, $DateIsoFstr, $null )
+        # $Date = [DateTime]::ParseExact($date, $DateIsoFstr, $null )
         $date = $dateStr
+        try { $date = [datetime]::ParseExact( $dateStr, $DateIsoFstr, $Null ) }
+        catch {
+            $date = $null
+            if( ShowDateError ) {
+                "Failed parsing commit date for line: '${Line}'" | Write-Error
+            }
+        }
 
         [pscustomobject]@{
-            CommitDate = $Date
+            CommitDate =
+                $DateStr
+                # $Date
             GitUserName = $Author
             GitUserEmail = $Email
+            CommitMessage = $commitMessage -join "`n"  #or symbol:  $strLFSymbol
+            Rest = $Rest -join $strLFSymbol
         }
     }
 }

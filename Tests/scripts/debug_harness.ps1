@@ -96,3 +96,6 @@ $DebugPath | ft -AutoSize
 # GitServe.Get-DatePaginationKey -StartDate ([datetime]::Now.AddDays(4)) -Period month
 # GitServe.Get-NextDatePeriod'
 # GitServe.Get-NextDatePeriod -CurrentDate $today -Period month
+
+
+#  $fastLogs = & $curModInfo { FastGItLog -FromPath '.' -ea break }  | Select -first 10

@@ -68,7 +68,10 @@
     # $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
     $git_splat = @{
         FromPath = $RepoPath
-        GitArgList = $gitArgs
+        # GitArgList = @(
+        #     # $gitArgs
+        #     # 'log'
+        #  )
     }
     if( $parsedQuery.Get('since') ) {
         $git_splat['since'] = $parsedQuery.Get('since')
