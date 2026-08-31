@@ -1,11 +1,9 @@
 <#
 .Description
-    Module built on: 2026-08-24 13:54:50Z
+    Module built on: 2026-08-31 10:20:30Z
 #>
 
 #region Module.Before.ps1
-
-Import-Module ugit
 
 # Ensure http outputs default to utf8
 $OutputEncoding = (
@@ -1340,6 +1338,7 @@ function Invoke-GitServeRealGit {
         Invoke-GitServeUGit
     #>
     [Alias(
+        'Git',
         'GitServe.Invoke-RealGit'
     )]
     [CmdletBinding()]
@@ -1612,6 +1611,10 @@ function Get-GitServeRepoList {
         #endregion calculate new return value
     }
 
+
+    # ensure sort, regardless of import method
+    $records = $records | Sort-Object NewestCommitDate -Descending
+
     $records.count | Join-String -op 'final $records.count: ' | Write-Verbose
 
     # save cache if any records are found
@@ -1851,6 +1854,10 @@ function SetConfig.ClonedRepoRoot {
     <#
     .synopsis
         Set app configuration for root directories to search ( ie: local, vs docker, etc )
+    .EXAMPLE
+        # using one or more custom paths
+        GitServe.Set-ConfigRepoRoot -Path 'C:\MyRepos', 'C:\MoreRepos'
+        GitServe.Repo.List | Ft # shows updated repos
     .DESCRIPTION
         Set root directories for cloned repos.
     #>
@@ -1866,6 +1873,9 @@ function SetConfig.ClonedRepoRoot {
 
     # Clear cached repos since the path[s] have changed
     Clear-ResponseCacheKey -Key '/repo/list' -Verbose:$false
+
+    # clear JsonCache for for GitServe.Repo.List
+    Remove-Item -ea ignore -LiteralPath $script:ModuleState.JsonCacheRepoList
 }
 
 function /repo/author {
@@ -2479,6 +2489,14 @@ function /repo/metric/totalcommit {
 
 
 #region Module.After.ps1
+
+# Ensure global 'git' alias resolves to RealGit instead of ugit
+#   either [1] remove it
+# Remove-Alias -Name 'git'
+#   or [2] set to GitServe.Invoke-RealGit )
+#       Set-Alias git -Value GitServe.Invoke-RealGit # -Force # -Scope Global
+
+Set-Alias 'UGit' -value 'ugit\Use-Git'
 
 # Use Module Removed Event for Cleanup
 # This could be turned into a "common module filename" at '/Private/Module.OnRemoveModule.ps1'
