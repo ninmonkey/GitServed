@@ -274,6 +274,10 @@ function Invoke-GitServeRealGit {
             | Write-Debug
 
         $results = & $binGit @gitArgs
+        $Git_ExitCode = $LASTEXITCODE
+        if( $Git_ExitCode -ne 0) {
+            throw "GitServe.Invoke-RealGit: Git exit code != 0 !: ${Git_ExitCode} "
+        }
         $results
         # captures and emit so that the future is easily cache-able, and may redirect stderr to null
         #endregion invoke RealGit
