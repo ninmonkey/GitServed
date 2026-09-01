@@ -1,6 +1,6 @@
 <#
 .Description
-    Module built on: 2026-08-31 10:20:30Z
+    Module built on: 2026-08-31 16:57:00Z
 #>
 
 #region Module.Before.ps1
@@ -60,6 +60,96 @@ function Clear-ResponseCacheKey {
     "Clear-ResponseCache -Key '${KeyName}'" | Write-Verbose
     $cache = $Script:ResponseCache
     $cache.Remove( $KeyName ) # safe for missing keys
+}
+
+function FastGitLog {
+    <#
+    .SYNOPSIS
+        a Faster version of 'git log' than ugit, but still returns objects
+    #>
+    param(
+# Arguments passed to real 'git'. Or any not configurable from the other parameters
+        [Alias('ArgList', 'GitArgs', 'RealGitArgs')]
+        [string[]] $GitArgList,
+
+        # What path will you execute from? This saves you the overhead of changing directories
+        [Alias('Path', 'PSPath', 'GitRepositoryPath', 'RepoPath')]
+        [Parameter()]
+        [string] $FromPath, # = '.',
+
+        # for git argument: '--since=<string>'
+        [string] $Since,
+
+        # for git argument: '--before=<string>'
+        [string] $Before,
+
+        # for git argument: '--after=<string>'
+        [string] $After,
+
+        # Should it write errors when date format fails ? otherwise coerce them into null
+        [switch] $ShowDateError,
+
+        [switch] $PSHost
+    )
+
+    # working:
+    # $logs = GitServe.Invoke-RealGit -NoPager -GitArgList log, --date=iso, --pretty=format:"%cd${delim}%an${delim}%ae${delim}[%s]"
+
+    # get all parameters
+    # $params = @{} + $PSBoundParameters
+    $passedParams = [hashtable]::new( $PSBoundParameters )
+    $delim = "`u{2400}"
+    $strLFSymbol = "`u{240a}"
+
+    # $buffer = @( $passedParams['GitArgList'] )
+
+    $passedParams['GitArgList'] = @(
+        'log'
+        # @buffer
+        # $passedParams['GitArgList'] # this was sometimes blank
+        '--date=iso'
+
+        # this
+        # "--pretty=format:%cd${delim}%an${delim}%ae${delim}[%s]"
+        # should be
+        # '--pretty=format:%cd␀%an␀%ae␀[%s]'
+        "--pretty=format:%cd${Delim}%an${Delim}%ae${Delim}[%s]"
+    )
+    $DateIsoFstr = "yyyy-MM-dd HH:mm:ss zzz"
+
+    # git.exe --no-pager log --pretty=format:"%cd${delim}%an${delim}%ae${delim}[%s]" --date=iso
+    # $logs  = ...
+
+    # $logs = Invoke-GitServeRealGit -PSHost -Verbose @passedParams
+    if( $PSHost ) {
+        $passedParams | ConvertTo-Json | Write-Host -fg 'cyan'
+    }
+    Invoke-GitServeRealGit -NoPager @passedParams # -ea break # -PSHost -Verbose
+    | % {
+        $line = $_
+        $dateStr, $author, $email, $commitMessage, $rest  =  $line -split $delim, 5
+
+        # $Date = [DateTime]::ParseExact($date, $DateIsoFstr, ([cultureinfo]::InvariantCulture) )
+        # $Date = [DateTime]::ParseExact($date, $DateIsoFstr, $null )
+        $date = $dateStr
+        try { $date = [datetime]::ParseExact( $dateStr, $DateIsoFstr, $Null ) }
+        catch {
+            $date = $null
+            if( ShowDateError ) {
+                "Failed parsing commit date for line: '${Line}'" | Write-Error
+            }
+        }
+
+        [pscustomobject]@{
+            CommitDate =
+                $DateStr
+                # $Date
+            GitUserName = $Author
+            GitUserEmail = $Email
+            CommitMessage = $commitMessage -join "`n"  #or symbol:  $strLFSymbol
+            Rest = $Rest -join $strLFSymbol
+        }
+    }
 }
 
 function Get-ResponseCache {
@@ -806,10 +896,10 @@ function Metric-GitServeCommitCount {
         }
         function __toKeyId {
             # Generate a PrimaryKey. This determines distinct testing for records
-            param( $Obj )
+            param( $CommitDate, $GitUserName )
             '{0}_{1}' -f @(
-                $Obj.CommitDate.ToString( $keyFormat )
-                $Obj.GitUserName
+                $CommitDate.ToString( $keyFormat )
+                $GitUserName
             )
         }
         $reverseComparer = [System.Collections.Generic.Comparer[string]]::Create({
@@ -818,7 +908,7 @@ function Metric-GitServeCommitCount {
         [Collections.Generic.SortedDictionary[string,object]] $metric = $reverseComparer
     }
     process {
-        $key = __toKeyId $InputObject
+        $key = __toKeyId -CommitDate $CommitDate -GitUserName $GitUserName
         if( -not $metric.ContainsKey( $key ) ) {
             $initialValue = [pscustomobject][ordered]@{
                 PSTYpeName  = 'GitServe.Metric.CommitCount'
@@ -1344,6 +1434,7 @@ function Invoke-GitServeRealGit {
     [CmdletBinding()]
     param(
         # Arguments passed to real 'git'. Or any not configurable from the other parameters
+        # [Parameter(ValueFromRemainingArguments)]
         [Alias('ArgList', 'GitArgs', 'RealGitArgs')]
         [string[]] $GitArgList,
 
@@ -1457,6 +1548,10 @@ function Invoke-GitServeRealGit {
             | Write-Debug
 
         $results = & $binGit @gitArgs
+        $Git_ExitCode = $LASTEXITCODE
+        if( $Git_ExitCode -ne 0) {
+            throw "GitServe.Invoke-RealGit: Git exit code != 0 !: ${Git_ExitCode} "
+        }
         $results
         # captures and emit so that the future is easily cache-able, and may redirect stderr to null
         #endregion invoke RealGit
@@ -2133,6 +2228,109 @@ function / {
     New-HtmlTemplate -Title 'Index' -HtmlContent $Html
 }
 
+function /repo/fastlog {
+    <#
+    .SYNOPSIS
+        (using simplified, faster log ) Return git logs based on repo OwnerRepoPair '/<owner>/<repo>'
+    .DESCRIPTION
+    Query Parameters:
+        name   - Short repo name like "BurntSushi/ripgrep"
+        since  - "2.months"
+        after  - '2024-01-01'
+        before - '2024-01-01'
+
+        name: [string]
+            The short 'OwnerRepoPair' for a cloned repo. Like:
+            BurntSushi/ripgrep
+
+        limit: [int]
+            Return at most this many records.
+            ( The git logs limit parameter )
+    .EXAMPLE
+        irm 'http://127.0.0.1:3001/repo/fastlog?name=BurntSushi/ripgrep'
+        irm 'http://127.0.0.1:3001/repo/fastlog?name=BurntSushi/ripgrep&limit=4'
+    .EXAMPLE
+        irm 'http://127.0.0.1:3001/repo/fastlog?name=BurntSushi/ripgrep&before=2025-01-01&limit=2'
+        irm 'http://127.0.0.1:3001/repo/fastlog?name=BurntSushi/ripgrep&since=2.weeks&limit=4'
+        irm 'http://127.0.0.1:3001/repo/fastlog?name=BurntSushi/ripgrep&before=2.month&limit=3'
+        irm 'http://127.0.0.1:3001/repo/fastlog?name=BurntSushi/ripgrep&since=2.month&limit=3'
+    .LINK
+        /repo/log
+    .LINK
+        /repo/fastlog
+    #>
+
+    [OutputType( 'GitServe.Route.Repo.FastLog' )]
+    [Alias('GitServe.Route.Get-FastLog')]
+    [CmdletBinding()]
+    param(
+        # a request from the listen server
+        [Parameter(Mandatory)]
+        [object] $Request
+    )
+    $endpointLabel = '/repo/fastlog'
+    [Collections.Specialized.NameValueCollection] $parsedQuery = ParseQueryString $Request
+
+    #region Build Git Args
+    [string] $OwnerRepoPair = $parsedQuery.Get('name')
+    [int] $MaxLogs = $parsedQuery.Get('limit')
+
+    if ( [String]::IsNullOrWhitespace( $ClonedRepoRoot ) ) {
+        $ClonedRepoRoot = GetConfig.ClonedRepoRoot | Get-Item -ea 'stop'
+        'RootPath: {0}' -f ( $ClonedRepoRoot ) | Write-Verbose
+    }
+    $RepoPath = Join-Path $ClonedRepoRoot $OwnerRepoPair # todo(sanitization): use a better escape and match method
+    if ( ! ( Test-Path $RepoPath )) {
+        "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'" | Write-Host -fore red
+        throw "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'"
+    }
+    # build git limiting args, which are common across ugit and git
+
+
+    [Collections.Generic.List[object]] $gitArgs = @(
+        'log'
+        if ( $MaxLogs ) {
+            '-n'
+            $MaxLogs
+        }
+    )
+
+    # $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
+    $git_splat = @{
+        FromPath = $RepoPath
+        # GitArgList = @(
+        #     # $gitArgs
+        #     # 'log'
+        #  )
+    }
+    if( $parsedQuery.Get('since') ) {
+        $git_splat['since'] = $parsedQuery.Get('since')
+    }
+    if( $parsedQuery.Get('before') ) {
+        $git_splat['before'] = $parsedQuery.Get('before')
+    }
+    if( $parsedQuery.Get('after') ) {
+        $git_splat['after'] = $parsedQuery.Get('after')
+    }
+    #endregion Build Git Args
+
+    #region Invoke Git
+    try {
+
+        $results = FastGitLog @git_splat
+        # $results = Invoke-GitServeRealGit @git_splat
+            # | Select-Object -Property $SelectProperty
+    }
+    catch {
+        "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
+        | Write-Host
+        "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
+        | Write-Error
+    }
+    return $results
+    #endregion Invoke Git
+}
+
 function /repo/metric/language {
     <#
     .SYNOPSIS
@@ -2235,6 +2433,10 @@ function /repo/log {
         irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep&since=2.weeks&limit=4'
         irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep&before=2.month&limit=3'
         irm 'http://127.0.0.1:3001/repo/log?name=BurntSushi/ripgrep&since=2.month&limit=3'
+    .LINK
+        /repo/log
+    .LINK
+        /repo/fastlog
     #>
 
     [OutputType( 'GitServe.Route.Repo.Log' )]
@@ -2409,38 +2611,33 @@ function /repo/metric/totalcommit {
         "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'" | Write-Host -fore red
         throw "${endpointLabel} Error: Invalid OwnerRepoPair! '${OwnerRepoPair}'"
     }
-    [Collections.Generic.List[object]] $gitArgs = @(
-        'log'
-    )
-
-    $SelectProperty = 'CommitDate', 'GitUserName', 'Date', 'Scope', 'CommitType', 'Merged', 'CommitHash', 'Trailer', 'Trailers'
-    $UGit_splat = @{
+    $git_splat = @{
         FromPath = $RepoPath
-        GitArgList = $gitArgs
+        # GitArgList = @()
     }
     if( $parsedQuery.Get('since') ) {
-        $UGit_splat['since'] = $parsedQuery.Get('since')
+        $git_splat['since'] = $parsedQuery.Get('since')
     }
     if( $parsedQuery.Get('before') ) {
-        $UGit_splat['before'] = $parsedQuery.Get('before')
+        $git_splat['before'] = $parsedQuery.Get('before')
     }
     if( $parsedQuery.Get('after') ) {
-        $UGit_splat['after'] = $parsedQuery.Get('after')
+        $git_splat['after'] = $parsedQuery.Get('after')
     }
 
     #endregion Build Git Args
     #region Invoke Git Args
     try {
 
-        [object[]] $results = Invoke-GitServeUGit @UGit_splat
-            | Select-Object -Property $SelectProperty
+        # [object[]] $results = Invoke-GitServeUGit @UGit_splat
+        #     | Select-Object -Property $SelectProperty
+        $results = FastGitLog @git_splat
             | GitServe.Metric.CommitCount -Period $Period
     }
     catch {
-        "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
-        | Write-Host
-        "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
-        | Write-Error
+        $errMsg = "${endpointLabel} Error: Failed to get logs for '${OwnerRepoPair}' => $($_.Exception.Message)"
+        $errMsg | Write-Host
+        throw $errMsg
     }
     finally { }
 
