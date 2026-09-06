@@ -9,6 +9,45 @@ DateOnlyIsEqual
 
 #>
 
+function Str.Predent {
+    param( [int] $Depth = 1 )
+    $prefix = '  ' * $depth -join ''
+    $Input | Join-String -f "${prefix}{0}"
+}
+function Log.Warn {
+    <#
+    .SYNOPSIS
+        Logs severity level: warn, to pester log indented with color
+    #>
+    param( [int] $Depth = 1, [string] $Title = 'Warn' )
+    $Input
+    | New-Text -bg $null -fg 'salmon' # '#333333'
+    | Join-String -op "${Title}: "
+    | Str.Predent -Depth $Depth
+    | Write-host
+}
+function Log.Dim {
+    <#
+    .SYNOPSIS
+        Logs severity level: Dim, to pester log indented with color
+    #>
+    param( [int] $Depth = 1 )
+    $Input
+    | New-Text -bg $null -fg '#666666' # '#333333'
+    | Str.Predent -Depth $Depth
+    | Write-host
+}
+function Log.Info {
+    <#
+    .SYNOPSIS
+        Logs severity level: info, to pester log indented with color
+    #>
+    param( [int] $Depth = 1 )
+    $Input
+    | New-Text -bg '#67c8da' -fg '#333333'
+    | Str.Predent -Depth $Depth
+    | Write-host
+}
 
 function Date.FromStr  {
     <#

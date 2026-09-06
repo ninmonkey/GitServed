@@ -5,14 +5,33 @@ $PSStyle.OutputRendering = 'ansi'
 
 BeforeAll {
     $WorkspaceRoot = Get-Item -ea 'stop' ( Join-Path $PSScriptRoot '../../..' )
+    # import test utils
+    Import-Module -Force ( Gi -ea 'stop' (  Join-Path $WorkspaceRoot 'Tests/test_utils.ps1' ) )
+
+    "workspace: ${WorkspaceRoot}" | Log.Dim
     # load newest build
     Import-Module -Force -PassThru ( Join-Path $WorkspaceRoot 'GitServe.psd1' )
     | Join-String -op 'Import: ' -p { $_.Name, $_.Version } | Write-Host -bg 'blue'
+
 
     # Load known repos for testing
     $SourceRepos = Get-Item -ea 'stop' 'C:\GitLoggerApp\Testcase-ClonedRepos'
     GitServe.Set-ConfigRepoRoot -Path $SourceRepos
     # GitServe.Repo.List -WithoutCache # force cache is right for this instance
+
+    function CloneRepoIfMissing {
+        param(
+            [string] $OwnerRepoPair
+        )
+        $found = GitServe.Repo.List | ? OwnerRepoPair -eq $OwnerRepoPair
+        if( $Found ) { return }
+        "Missing ${ownerRepPair}... Cloning..." | Write-Host -fg 'salmon'
+
+        'burntsushi/ripgrep'
+    }
+
+    CloneRepoIfMissing
+    # 3fce3b5bb0236da2df6d99672afb8a719642eca7
 }
 
 Describe 'GitServe.Repo.List' {
@@ -23,6 +42,11 @@ Describe 'GitServe.Repo.List' {
         ) {
             GitServe.Repo.List
             | Should-Any { $_.OwnerRepoPair -eq $OwnerRepoPair } -Because 'The required testing repo should exist'
+        }
+        It 'cloned right date range' {
+            $one = GitServe.Repo.List | ? OwnerRepoPair -eq 'burntsushi/ripgrep'
+            $one.NewestCommitDate | Should-Be -Expected '2026-08-04' -because 'Tests require this date range'
+            $one.Remote | Should-Be -Expected 'https://github.com/BurntSushi/ripgrep.git'
         }
     }
     It 'Correct Types' {
