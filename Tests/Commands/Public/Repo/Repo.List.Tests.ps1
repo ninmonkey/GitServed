@@ -4,10 +4,7 @@
 $PSStyle.OutputRendering = 'ansi'
 
 BeforeAll {
-    $WorkspaceRoot = Get-Item -ea 'stop' ( Join-Path $PSScriptRoot '../../..' )
-    # import test utils
-    Import-Module -Force ( Gi -ea 'stop' (  Join-Path $WorkspaceRoot 'Tests/test_utils.ps1' ) )
-
+    $WorkspaceRoot = Get-Item -ea 'stop' ( Join-Path $PSScriptRoot '../../../..' )
     "workspace: ${WorkspaceRoot}" | Log.Dim
     # load newest build
     Import-Module -Force -PassThru ( Join-Path $WorkspaceRoot 'GitServe.psd1' )
