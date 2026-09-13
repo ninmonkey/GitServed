@@ -1,0 +1,16 @@
+﻿<#
+.synopsis
+    main pester testing for CI. Runs path: ./Tests/Commands/*
+#>
+$error.clear()
+$Config = New-PesterConfiguration
+
+$Config.Run.Path         = './Tests/Commands'
+$Config.Output.Verbosity = 'Detailed'
+$Config.TestResult.Enabled = $true
+# $config.Run.Exit = $true # https://pester.dev/tutorial/ci/test-script
+$Config.TestResult.OutputPath = './testResults.xml'
+
+Invoke-Pester -Configuration $Config
+
+"wrote: ${fg:blue}./testResults.xml"
