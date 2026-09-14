@@ -16,56 +16,6 @@ BeforeAll {
     GitServe.Set-ConfigRepoRoot -Path $SourceReposRoot
     # GitServe.Repo.List -WithoutCache # force cache is right for this instance
 
-    function CloneRepoIfMissing {
-        <#
-        .SYNOPSIS
-            ensure repo exists at "<SourceReposRoot/Owner/Repo>" otherwise clone it
-        #>
-        param(
-            [Parameter(Mandatory)]
-            [string] $OwnerRepoPair,
-
-            # which exact hash to checkout on
-            [Parameter(Mandatory)]
-            [string] $CheckoutHash,
-
-            # what to clone
-            [Parameter(Mandatory)]
-            [uri]$CloneUrl,
-
-            # folder to clone under
-            [Parameter(Mandatory)]
-            [string] $RepoRoot
-
-        )
-        $found = GitServe.Repo.List -WithoutCache | ? OwnerRepoPair -eq $OwnerRepoPair
-        if( $Found ) { return }
-
-        "Missing ${ownerRepPair}... Cloning..." | Log.Warn
-        $ownerName, $repoName = $OwnerRepoPair -split '/', 2
-
-        $cloneParentDir = Join-Path $RepoRoot $ownerName
-        mkdir $cloneParentDir -ea Ignore -Confirm:$False
-
-        GitServe.Invoke-RealGit -Frompath $cloneParentDir -GitArgList @(
-            'clone'
-            $CloneUrl
-        )
-
-        $repoFullPath = Join-path $cloneParentDir $repoName
-        "Cloned to: ${repoFullPath}" | Log.Info
-
-        GitServe.Invoke-RealGit -FromPath $repoFullPath -GitArgList @(
-            'checkout'
-            $CheckoutHash
-        ) | Write-Verbose
-
-        "Checked hash: ${CheckoutHash}" | Log.Info
-
-        # force clear cache because the clone uses raw git commands to clone, and because of commit hash change
-        GitServe.Repo.List -WithoutCache
-    }
-
     $cloneRepoIfMissingSplat = @{
         CloneUrl      = 'https://github.com/burntsushi/ripgrep'
         OwnerRepoPair = 'burntsushi/ripgrep'
@@ -73,7 +23,7 @@ BeforeAll {
         CheckoutHash  = '3fce3b5bb0236da2df6d99672afb8a719642eca7'
     }
 
-    CloneRepoIfMissing @cloneRepoIfMissingSplat
+    Helper.CloneRepoIfMissing @cloneRepoIfMissingSplat
 }
 
 Describe 'GitServe.Repo.List' {
@@ -85,7 +35,7 @@ Describe 'GitServe.Repo.List' {
             GitServe.Repo.List
             | Should-Any { $_.OwnerRepoPair -eq $OwnerRepoPair } -Because 'The required testing repo should exist'
         }
-        It 'cloned right date range' {
+        It 'cloned right date range' -Tag 'UsesClone' {
             $one = GitServe.Repo.List | ? OwnerRepoPair -eq 'burntsushi/ripgrep'
             $one.NewestCommitDate | Should-Be -Expected '2026-08-04' -because 'Tests require this date range'
             $one.Remote | Should-MatchString -Expected 'https://github.com/BurntSushi/ripgrep' # .git suffix depends on clone command

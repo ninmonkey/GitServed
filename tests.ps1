@@ -23,7 +23,6 @@ $Config.Output.RenderMode      = 'Auto'  # valid: [Auto] | Ansi | ConsoleColor |
 $Config.Output.ShowTags        = $true
 $Config.Debug.ShowStartMarkers = $true   # shows names of long-running tests that are stuck
 
-
 $Config.TestResult.Enabled   = $true
 $Config.CodeCoverage.Enabled = $false
 

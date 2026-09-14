@@ -112,3 +112,53 @@ function Date.Str  {
         return $display
     }
 }
+
+ function Helper.CloneRepoIfMissing {
+        <#
+        .SYNOPSIS
+            ensure repo exists at "<SourceReposRoot/Owner/Repo>" otherwise clone it
+        #>
+        param(
+            [Parameter(Mandatory)]
+            [string] $OwnerRepoPair,
+
+            # which exact hash to checkout on
+            [Parameter(Mandatory)]
+            [string] $CheckoutHash,
+
+            # what to clone
+            [Parameter(Mandatory)]
+            [uri]$CloneUrl,
+
+            # folder to clone under
+            [Parameter(Mandatory)]
+            [string] $RepoRoot
+
+        )
+        $found = GitServe.Repo.List -WithoutCache | ? OwnerRepoPair -eq $OwnerRepoPair
+        if( $Found ) { return }
+
+        "Missing ${ownerRepPair}... Cloning..." | Log.Warn
+        $ownerName, $repoName = $OwnerRepoPair -split '/', 2
+
+        $cloneParentDir = Join-Path $RepoRoot $ownerName
+        mkdir $cloneParentDir -ea Ignore -Confirm:$False
+
+        GitServe.Invoke-RealGit -Frompath $cloneParentDir -GitArgList @(
+            'clone'
+            $CloneUrl
+        )
+
+        $repoFullPath = Join-path $cloneParentDir $repoName
+        "Cloned to: ${repoFullPath}" | Log.Info
+
+        GitServe.Invoke-RealGit -FromPath $repoFullPath -GitArgList @(
+            'checkout'
+            $CheckoutHash
+        ) | Write-Verbose
+
+        "Checked hash: ${CheckoutHash}" | Log.Info
+
+        # force clear cache because the clone uses raw git commands to clone, and because of commit hash change
+        GitServe.Repo.List -WithoutCache
+    }
