@@ -9,6 +9,8 @@ DateOnlyIsEqual
 
 #>
 
+$PSStyle.OutputRendering = 'Host' # for pester outputs
+
 function Str.Predent {
     param( [int] $Depth = 1 )
     $prefix = '  ' * $depth -join ''
