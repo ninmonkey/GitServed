@@ -1,6 +1,6 @@
 <#
 .Description
-    Module built on: 2026-08-31 16:57:00Z
+    Module built on: 2026-09-14 13:35:51Z
 #>
 
 #region Module.Before.ps1
@@ -1649,7 +1649,7 @@ function Get-GitServeRepoList {
 
     if( $WithoutCache ) {
         '$WithoutCache, deleting: ' | Write-Verbose
-        Remove-Item -LiteralPath $JsonCachePath
+        Remove-Item -LiteralPath $JsonCachePath -ea ignore
     }
 
     if( -not $WithoutCache ) {
@@ -1725,7 +1725,7 @@ function Get-GitServeRepoList {
     # Always remove file if records are empty
     if( $records.count -eq 0 ) {
         $JsonCachePath | Join-String -op 'Records count == 0, deleting: ' | Write-Verbose
-        Remove-Item -LiteralPath $JsonCachePath
+        Remove-Item -LiteralPath $JsonCachePath -ea ignore
     }
 
 
@@ -2692,8 +2692,6 @@ function /repo/metric/totalcommit {
 # Remove-Alias -Name 'git'
 #   or [2] set to GitServe.Invoke-RealGit )
 #       Set-Alias git -Value GitServe.Invoke-RealGit # -Force # -Scope Global
-
-Set-Alias 'UGit' -value 'ugit\Use-Git'
 
 # Use Module Removed Event for Cleanup
 # This could be turned into a "common module filename" at '/Private/Module.OnRemoveModule.ps1'
