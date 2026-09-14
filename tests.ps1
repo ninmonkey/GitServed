@@ -22,13 +22,9 @@ $Config.CodeCoverage.OutputPath = './coverage.xml'
 
 #endregion pester config
 
-#region pre-testing init
-# shared imports
-Import-Module -Force ( Gi -ea 'stop' (  Join-Path $PSScriptRoot 'Tests/test_utils.psm1' ) )
-
-# always rebuild
+# always rebuild module at least once
+#   Maybe redundant with Pester.BeforeContainer.ps1
 .\Build\Build.Module.ps1
-#endregion pre-testing init
 
 Invoke-Pester -Configuration $Config
 
