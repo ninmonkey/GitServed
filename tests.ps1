@@ -7,6 +7,9 @@ reference: https://pester.dev/docs/usage/configuration
 Pester runs another script before every file/container here:
     <file:///./Pester.BeforeContainer.ps1>
 #>
+param(
+    [switch] $IncludeRoutes
+)
 #region pester config
 $PSStyle.OutputRendering = 'Host'
 $error.clear()
@@ -26,8 +29,18 @@ $Config.Debug.ShowStartMarkers = $true   # shows names of long-running tests tha
 $Config.TestResult.Enabled   = $true
 $Config.CodeCoverage.Enabled = $false
 
-$Config.Run.Path          = './Tests/Commands'
-$Config.CodeCoverage.Path = './Tests/Commands'
+$Config.Run.Path          = @(
+    './Tests/Commands'
+    if( $IncludeRoutes ) {
+        './tests/Routes'
+    }
+)
+$Config.CodeCoverage.Path = @(
+    './Tests/Commands'
+    if( $IncludeRoutes ) {
+        './tests/Routes'
+    }
+)
 
 $Config.TestResult.OutputPath   = './testResults.xml'
 $Config.CodeCoverage.OutputPath = './coverage.xml'
