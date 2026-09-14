@@ -4,15 +4,8 @@
 $PSStyle.OutputRendering = 'ansi'
 
 BeforeAll {
-    $WorkspaceRoot = Get-Item -ea 'stop' ( Join-Path $PSScriptRoot '../../../..' )
-    "workspace: ${WorkspaceRoot}" | Log.Dim
-    # load newest build
-    Import-Module -Force -PassThru ( Join-Path $WorkspaceRoot 'GitServe.psd1' )
-    | Join-String -op 'Import: ' -p { $_.Name, $_.Version } | Write-Host -bg 'blue'
-
-
     # Load known repos for testing
-    $SourceReposRoot = Get-Item -ea 'stop' 'C:\GitLoggerApp\Testcase-ClonedRepos'
+    $SourceReposRoot = Helper.TestCloneReposRoot
     GitServe.Set-ConfigRepoRoot -Path $SourceReposRoot
     # GitServe.Repo.List -WithoutCache # force cache is right for this instance
 

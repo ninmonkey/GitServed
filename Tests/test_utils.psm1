@@ -113,52 +113,96 @@ function Date.Str  {
     }
 }
 
+function Helper.WorkspaceRoot {
+    <#
+    .synopsis
+        Get the workspace root, without relying on global variables being in scope
+    #>
+    Get-Item -ea 'stop' ( Join-Path $PSScriptRoot '..'  )
+}
+function Helper.TestCloneReposRoot {
+    <#
+    .synopsis
+        Get the shared cloned repos root, when you don't want a $TestDrive path
+    #>
+    'C:\GitLoggerApp\Testcase-ClonedRepos' # | Get-Item -ea 'stop'
+}
  function Helper.CloneRepoIfMissing {
-        <#
-        .SYNOPSIS
-            ensure repo exists at "<SourceReposRoot/Owner/Repo>" otherwise clone it
-        #>
-        param(
-            [Parameter(Mandatory)]
-            [string] $OwnerRepoPair,
+    <#
+    .SYNOPSIS
+        ensure repo exists at "<SourceReposRoot/Owner/Repo>" otherwise clone it
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string] $OwnerRepoPair,
 
-            # which exact hash to checkout on
-            [Parameter(Mandatory)]
-            [string] $CheckoutHash,
+        # which exact hash to checkout on
+        [Parameter(Mandatory)]
+        [string] $CheckoutHash,
 
-            # what to clone
-            [Parameter(Mandatory)]
-            [uri]$CloneUrl,
+        # what to clone
+        [Parameter(Mandatory)]
+        [uri]$CloneUrl,
 
-            # folder to clone under
-            [Parameter(Mandatory)]
-            [string] $RepoRoot
+        # folder to clone under
+        [Parameter(Mandatory)]
+        [string] $RepoRoot
 
-        )
-        $found = GitServe.Repo.List -WithoutCache | ? OwnerRepoPair -eq $OwnerRepoPair
-        if( $Found ) { return }
+    )
+    $found = GitServe.Repo.List -WithoutCache | ? OwnerRepoPair -eq $OwnerRepoPair
+    if( $Found ) { return }
 
-        "Missing ${ownerRepPair}... Cloning..." | Log.Warn
-        $ownerName, $repoName = $OwnerRepoPair -split '/', 2
+    "Missing ${ownerRepPair}... Cloning..." | Log.Warn
+    $ownerName, $repoName = $OwnerRepoPair -split '/', 2
 
-        $cloneParentDir = Join-Path $RepoRoot $ownerName
-        mkdir $cloneParentDir -ea Ignore -Confirm:$False
+    $cloneParentDir = Join-Path $RepoRoot $ownerName
+    mkdir $cloneParentDir -ea Ignore -Confirm:$False
 
-        GitServe.Invoke-RealGit -Frompath $cloneParentDir -GitArgList @(
-            'clone'
-            $CloneUrl
-        )
+    GitServe.Invoke-RealGit -Frompath $cloneParentDir -GitArgList @(
+        'clone'
+        $CloneUrl
+    )
 
-        $repoFullPath = Join-path $cloneParentDir $repoName
-        "Cloned to: ${repoFullPath}" | Log.Info
+    $repoFullPath = Join-path $cloneParentDir $repoName
+    "Cloned to: ${repoFullPath}" | Log.Info
 
-        GitServe.Invoke-RealGit -FromPath $repoFullPath -GitArgList @(
-            'checkout'
-            $CheckoutHash
-        ) | Write-Verbose
+    GitServe.Invoke-RealGit -FromPath $repoFullPath -GitArgList @(
+        'checkout'
+        $CheckoutHash
+    ) | Write-Verbose
 
-        "Checked hash: ${CheckoutHash}" | Log.Info
+    "Checked hash: ${CheckoutHash}" | Log.Info
 
-        # force clear cache because the clone uses raw git commands to clone, and because of commit hash change
-        GitServe.Repo.List -WithoutCache
+    # force clear cache because the clone uses raw git commands to clone, and because of commit hash change
+    GitServe.Repo.List -WithoutCache
+}
+
+function Helper.Invoke-RestMethod {
+    <#
+    .synopsis
+        Calls GitServe on the correct host and port name based on config
+    .example
+        Helper.Invoke-RestMethod -RelativePath 'repo/list'
+    #>
+    param(
+        [Alias('RelativeUrl')]
+        [string] $RelativePath,
+        $Body,
+        $Method # = 'GET'
+    )
+
+    $HostPrefix = (GitServe.Get-ConfigHost).Url # ex: 'http://127.0.0.1:3001'
+    $splat = @{
+        SkipHttpErrorCheck = $true
+        StatusCodeVariable = 'Status'
     }
+    if( $Body ) { $splat.Body = $Body }
+    if( $Method ) { $splat.Method = $Method }
+
+    [uri] $Url = "${HostPrefix}/${RelativePath}"
+    Invoke-RestMethod -Uri $Url @splat
+
+    if( $Status -notmatch '2\d+' ) {
+        # do nothing because it's a test?
+    }
+}
