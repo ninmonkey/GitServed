@@ -1,8 +1,20 @@
-﻿$MyModuleName = 'GitServe'
+﻿<#
+.synopsis
+    Pester file ran before every container
+.NOTES
+reference: https://pester.dev/docs/usage/configuration
+
+See main test entry point:
+    <file:///./tests.ps1>
+#>
+$MyModuleName = 'GitServe'
+
 $MyPesterContainerConfig = @{
-    EnableLogMockDebug = $false
+    EnableLogMockDebug  = $false
     AlwaysRebuildModule = $false
 }
+
+# reference: https://pester.dev/docs/usage/configuration
 
 $PSStyle.OutputRendering = 'Host'
 
