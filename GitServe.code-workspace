@@ -1,13 +1,14 @@
 {
 	"folders": [
 		{
-			"path": "." // 2026-07-26
+			"path": "." // 2026-09-13
 		}
     ],
     "settings": {
         "cSpell.words": [
             "cultureinfo",
             "shortlog"
-        ]
+        ],
+        "powershell.pester.debugOutputVerbosity": "Diagnostic"
     }
 }

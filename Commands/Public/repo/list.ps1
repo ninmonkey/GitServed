@@ -39,7 +39,7 @@
 
     if( $WithoutCache ) {
         '$WithoutCache, deleting: ' | Write-Verbose
-        Remove-Item -LiteralPath $JsonCachePath
+        Remove-Item -LiteralPath $JsonCachePath -ea ignore
     }
 
     if( -not $WithoutCache ) {
@@ -115,7 +115,7 @@
     # Always remove file if records are empty
     if( $records.count -eq 0 ) {
         $JsonCachePath | Join-String -op 'Records count == 0, deleting: ' | Write-Verbose
-        Remove-Item -LiteralPath $JsonCachePath
+        Remove-Item -LiteralPath $JsonCachePath -ea ignore
     }
 
 
