@@ -16,16 +16,8 @@
 
 Describe '/repo/list' {
     It 'Contains exact response' {
-        $expected = [pscustomobject]@{
-            Name = 'ripgrep'
-            NewestCommitDate = '2026-08-04'
-            NewestCommitRelative = '6 weeks ago'
-            Owner = 'burntsushi'
-            OwnerRepoPair = 'burntsushi/ripgrep'
-            Path = 'C:\GitLoggerApp\Testcase-ClonedRepos\burntsushi\ripgrep'
-            Remote = 'https://github.com/burntsushi/ripgrep'
-        }
-        # irm '127.0.0.1:3333/repo/list'
+        $expected = Get-Content ( Join-Path $PSScriptRoot './Data/repo.list-sushi.json' ) | ConvertFrom-Json
+
         Helper.Invoke-RestMethod -RelativePath 'repo/list'
         | ? name -eq 'ripgrep'
         | Should-BeEquivalent $expected
